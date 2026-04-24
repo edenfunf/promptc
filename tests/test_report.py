@@ -39,21 +39,25 @@ def test_render_html_produces_non_empty_output(tmp_path: Path) -> None:
     assert "</html>" in html
 
 
-def test_render_html_has_no_external_fetches(tmp_path: Path) -> None:
-    """Report must be fully self-contained for offline / local-first use.
+def test_render_html_has_no_external_resource_fetches(tmp_path: Path) -> None:
+    """Report must not auto-fetch remote resources on page load.
 
-    Matches attribute patterns that would cause a browser to fetch a remote
-    resource; explanatory mentions of the word "CDN" in CSS comments do not.
+    `<a href>` citation links to the docs / community issue are allowed
+    (user-clickable, no page-load fetch); but `<script src=>`, `<link
+    rel=stylesheet href=>`, `<img src=>`, `<iframe src=>`, and `@import`
+    would trigger auto-fetches and break offline viewing.
     """
     _seed(tmp_path)
     html = render_html(*_analyze(tmp_path))
     assert "<script src=" not in html
     assert '<link rel="stylesheet"' not in html
     assert "@import url(" not in html
-    # No http(s) URLs in src/href attributes — file:// and relative refs ok.
     import re
-    remote_refs = re.findall(r'(?:src|href)\s*=\s*["\']https?://', html)
-    assert remote_refs == [], f"unexpected remote refs: {remote_refs}"
+    for tag in ("script", "link", "img", "iframe"):
+        pattern = rf"<{tag}[^>]*\b(?:src|href)\s*=\s*[\"']https?://"
+        assert re.search(pattern, html, re.IGNORECASE) is None, (
+            f"{tag} tag would auto-fetch a remote resource"
+        )
 
 
 def test_render_html_includes_hero_content(tmp_path: Path) -> None:
@@ -124,7 +128,11 @@ def test_render_html_escapes_html_in_file_paths(tmp_path: Path) -> None:
         exposure=exposure_r,
         grade=grade,
         top_files=top,
+        top_duplicates=[],
         disclaimer="",
+        exposure_narrative="",
+        anthropic_docs_url="",
+        community_issue_url="",
         styles="",
     )
     assert "<script>alert(1)</script>" not in html
@@ -177,3 +185,122 @@ def test_render_html_with_empty_scan_still_renders(tmp_path: Path) -> None:
     html = render_html(*_analyze(tmp_path))
     assert "<!DOCTYPE html>" in html
     assert "No files scanned." in html
+
+
+def _seed_with_duplicates(root: Path) -> None:
+    claude = root / ".claude" / "skills"
+    claude.mkdir(parents=True)
+    body = (
+        "# Security\n\n"
+        "Always use parameterized queries for every database access. "
+        "Never concatenate user-provided strings into SQL statements directly."
+    )
+    for name in ("security", "python-security", "db-rules"):
+        (claude / f"{name}.md").write_text(
+            f"---\nname: {name}\ndescription: SQL safety rule.\n---\n\n{body}\n",
+            encoding="utf-8",
+        )
+
+
+def test_render_html_renders_exposure_section(tmp_path: Path) -> None:
+    _seed_with_duplicates(tmp_path)
+    html = render_html(*_analyze(tmp_path))
+    assert "Skill Context Exposure" in html
+    assert "Promised load" in html
+    assert "Worst-case load" in html
+    assert "Exposure multiplier" in html
+    # Narrative + citations (collapse whitespace so the phrase survives any
+    # template line-wrapping).
+    flat = " ".join(html.split()).lower()
+    assert "code.claude.com" in flat
+    assert "14882" in flat
+    assert "makes no claim" in flat
+
+
+def test_render_html_hides_exposure_when_no_skills(tmp_path: Path) -> None:
+    claude = tmp_path / ".claude"
+    claude.mkdir()
+    (claude / "CLAUDE.md").write_text("# only instructions\n", encoding="utf-8")
+    html = render_html(*_analyze(tmp_path))
+    assert "Skill Context Exposure" not in html
+
+
+def test_render_html_renders_duplicates_section(tmp_path: Path) -> None:
+    _seed_with_duplicates(tmp_path)
+    html = render_html(*_analyze(tmp_path))
+    assert "Duplicate rules" in html
+    assert "tokens wasted" in html
+    # At least one chunk is tagged canonical
+    assert "canonical" in html
+    # All three source files appear in the duplicate comparison
+    for name in ("security.md", "python-security.md", "db-rules.md"):
+        assert f"skills/{name}" in html
+
+
+def test_render_html_hides_duplicates_section_when_none(tmp_path: Path) -> None:
+    claude = tmp_path / ".claude" / "skills"
+    claude.mkdir(parents=True)
+    (claude / "a.md").write_text(
+        "---\nname: a\ndescription: Unique one.\n---\n# A\n\n"
+        "Prefer composition over inheritance in object-oriented designs.\n",
+        encoding="utf-8",
+    )
+    (claude / "b.md").write_text(
+        "---\nname: b\ndescription: Unique two.\n---\n# B\n\n"
+        "Always validate input at the system boundary before processing.\n",
+        encoding="utf-8",
+    )
+    html = render_html(*_analyze(tmp_path))
+    assert "Duplicate rules" not in html
+
+
+def test_render_html_escapes_chunk_preview_text(tmp_path: Path) -> None:
+    """Chunk previews come from file contents; autoescape must neutralise them."""
+    claude = tmp_path / ".claude" / "skills"
+    claude.mkdir(parents=True)
+    payload = (
+        "---\nname: xss\ndescription: html-escape on chunk text.\n---\n\n"
+        "This chunk contains <script>alert('x')</script> and &amp; plus more "
+        "words to clear the min-words filter for dedup tests.\n"
+    )
+    (claude / "a.md").write_text(payload, encoding="utf-8")
+    (claude / "b.md").write_text(payload, encoding="utf-8")
+    html = render_html(*_analyze(tmp_path))
+    assert "<script>alert('x')</script>" not in html
+    assert "&lt;script&gt;" in html
+
+
+def test_render_html_anthropic_docs_and_issue_urls_linked(tmp_path: Path) -> None:
+    _seed_with_duplicates(tmp_path)
+    html = render_html(*_analyze(tmp_path))
+    # The URLs appear inside <a href="..."> elements, not just as text.
+    assert 'href="https://code.claude.com/docs/en/skills"' in html
+    assert (
+        'href="https://github.com/anthropics/claude-code/issues/14882"' in html
+    )
+
+
+def test_chunk_preview_truncates_long_text() -> None:
+    from promptc.report import _chunk_preview
+
+    short = "short paragraph"
+    assert _chunk_preview(short) == short
+
+    long_text = "word " * 200
+    out = _chunk_preview(long_text, max_chars=80)
+    assert len(out) <= 80
+    assert out.endswith(" ...")
+    assert "word word" in out
+
+
+def test_top_duplicate_groups_limits_and_orders(tmp_path: Path) -> None:
+    from promptc.report import _top_duplicate_groups
+
+    _seed_with_duplicates(tmp_path)
+    _, dedup_r, _, _ = _analyze(tmp_path)
+    cards = _top_duplicate_groups(dedup_r, limit=5)
+    assert len(cards) == dedup_r.total_groups
+    # Canonical is always the first chunk in the ordered list.
+    for card in cards:
+        assert card.chunks[0].is_canonical
+        assert sum(1 for c in card.chunks if c.is_canonical) == 1

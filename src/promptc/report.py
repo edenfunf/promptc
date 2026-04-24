@@ -20,7 +20,12 @@ import jinja2
 
 from promptc import __version__
 from promptc.dedup import DedupResult
-from promptc.exposure import ExposureReport
+from promptc.exposure import (
+    ANTHROPIC_DOCS_URL,
+    COMMUNITY_ISSUE_URL,
+    EXPOSURE_NARRATIVE,
+    ExposureReport,
+)
 from promptc.grade import Grade
 from promptc.models import ScanResult
 from promptc.tokens import TOKENIZER_DISCLAIMER
@@ -50,6 +55,64 @@ class TopFileRow:
     total_tokens: int
     duplicate_tokens: int
     duplicate_ratio: float
+
+
+@dataclass(frozen=True)
+class DuplicateChunkCard:
+    file_path: str
+    chunk_index: int
+    tokens: int
+    is_canonical: bool
+    preview: str
+
+
+@dataclass(frozen=True)
+class DuplicateGroupCard:
+    rank: int
+    kind: str
+    size: int
+    wasted_tokens: int
+    canonical_file: str
+    chunks: list[DuplicateChunkCard]
+
+
+def _chunk_preview(text: str, max_chars: int = 280) -> str:
+    """Collapse internal whitespace; truncate with an ellipsis at word boundary."""
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= max_chars:
+        return collapsed
+    cut = collapsed[: max_chars - 1].rsplit(" ", 1)[0]
+    return cut + " ..."
+
+
+def _top_duplicate_groups(
+    dedup_result: DedupResult, limit: int = 5
+) -> list[DuplicateGroupCard]:
+    """Top N groups by wasted tokens, with canonical chunk listed first."""
+    cards: list[DuplicateGroupCard] = []
+    for rank, group in enumerate(dedup_result.groups[:limit], start=1):
+        canonical = group.canonical
+        ordered = [canonical] + [c for c in group.chunks if c is not canonical]
+        cards.append(
+            DuplicateGroupCard(
+                rank=rank,
+                kind="exact" if group.is_exact else "near",
+                size=group.size,
+                wasted_tokens=group.wasted_tokens,
+                canonical_file=canonical.file_path,
+                chunks=[
+                    DuplicateChunkCard(
+                        file_path=c.file_path,
+                        chunk_index=c.chunk_index,
+                        tokens=c.tokens,
+                        is_canonical=(c is canonical),
+                        preview=_chunk_preview(c.raw),
+                    )
+                    for c in ordered
+                ],
+            )
+        )
+    return cards
 
 
 def _top_files(
@@ -96,7 +159,11 @@ def render_html(
         exposure=exposure_result,
         grade=grade,
         top_files=_top_files(scan_result, dedup_result, 10),
+        top_duplicates=_top_duplicate_groups(dedup_result, 5),
         disclaimer=TOKENIZER_DISCLAIMER,
+        exposure_narrative=EXPOSURE_NARRATIVE,
+        anthropic_docs_url=ANTHROPIC_DOCS_URL,
+        community_issue_url=COMMUNITY_ISSUE_URL,
         styles=_load_styles(),
     )
 

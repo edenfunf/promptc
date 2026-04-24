@@ -39,6 +39,149 @@
       </div>
     </section>
 
+    {% if exposure.skill_count and exposure.multiplier %}
+    <section class="card exposure">
+      <header class="card__header">
+        <h2>Skill Context Exposure</h2>
+        <p class="card__subtitle">Worst-case context cost if the full SKILL.md
+        body ends up in context instead of just the metadata.</p>
+      </header>
+
+      <div class="exposure__grid">
+        <div class="exposure__cell">
+          <div class="exposure__label">Promised load</div>
+          <div class="exposure__value">{{ "{:,}".format(exposure.total_promised) }}</div>
+          <div class="exposure__hint">name + description tokens</div>
+        </div>
+        <div class="exposure__cell exposure__cell--worst">
+          <div class="exposure__label">Worst-case load</div>
+          <div class="exposure__value">{{ "{:,}".format(exposure.total_worst_case) }}</div>
+          <div class="exposure__hint">full SKILL.md tokens</div>
+        </div>
+        <div class="exposure__cell exposure__cell--mult">
+          <div class="exposure__label">Exposure multiplier</div>
+          <div class="exposure__value exposure__value--mult">{{ "{:.1f}×".format(exposure.multiplier) }}</div>
+          <div class="exposure__hint">worst-case ÷ promised</div>
+        </div>
+      </div>
+
+      {% set max_load = exposure.total_worst_case if exposure.total_worst_case else 1 %}
+      <div class="exposure__bars">
+        <div class="exposure__bar-row">
+          <span class="exposure__bar-label">Promised</span>
+          <div class="exposure__bar-track">
+            <div class="exposure__bar-fill exposure__bar-fill--promised"
+                 style="width: {{ (exposure.total_promised / max_load * 100) | round(2) }}%;"></div>
+          </div>
+          <span class="exposure__bar-num">{{ "{:,}".format(exposure.total_promised) }}</span>
+        </div>
+        <div class="exposure__bar-row">
+          <span class="exposure__bar-label">Worst case</span>
+          <div class="exposure__bar-track">
+            <div class="exposure__bar-fill exposure__bar-fill--worst"
+                 style="width: 100%;"></div>
+          </div>
+          <span class="exposure__bar-num">{{ "{:,}".format(exposure.total_worst_case) }}</span>
+        </div>
+      </div>
+
+      {% if exposure.files %}
+      <h3 class="exposure__subhead">Top skills by worst-case load</h3>
+      <table class="files exposure__top">
+        <thead>
+          <tr>
+            <th class="col-path">Skill</th>
+            <th class="col-num">Worst-case</th>
+            <th class="col-num">Promised</th>
+            <th class="col-num">Mult.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in exposure.files[:5] %}
+          <tr>
+            <td class="col-path"><code>{{ f.file_path }}</code></td>
+            <td class="col-num">{{ "{:,}".format(f.worst_case_tokens) }}</td>
+            <td class="col-num">{{ "{:,}".format(f.promised_tokens) }}</td>
+            <td class="col-num">
+              {% if f.multiplier %}
+                <strong>{{ "{:.1f}×".format(f.multiplier) }}</strong>
+              {% else %}
+                <span class="dim">n/a</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      {% if exposure.skills_without_description %}
+      <p class="callout">
+        <strong>{{ exposure.skills_without_description | length }} skill(s) have no description field.</strong>
+        Their promised load is 0, so there is no startup metadata to match
+        against; the full body is the only way to know what they do.
+      </p>
+      {% endif %}
+
+      <div class="exposure__sources">
+        <p>Claude Code's Skills documentation describes the loading
+        model: skill descriptions load into context at session start so
+        Claude knows what's available, while the full SKILL.md body
+        loads only when the skill is invoked.</p>
+        <ul class="exposure__links">
+          <li>Docs:
+            <a href="{{ anthropic_docs_url }}" rel="noopener">{{ anthropic_docs_url }}</a>
+          </li>
+          <li>Community report of body loading anyway:
+            <a href="{{ community_issue_url }}" rel="noopener">{{ community_issue_url }}</a>
+          </li>
+        </ul>
+        <p class="exposure__disclaimer">The multiplier above is the ceiling of
+        your exposure if the full body ends up in context. This tool makes
+        no claim about whether that happens in your setup; it measures
+        the upper bound.</p>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if top_duplicates %}
+    <section class="card">
+      <header class="card__header">
+        <h2>Duplicate rules ({{ dedup.total_groups }} group{{ '' if dedup.total_groups == 1 else 's' }})</h2>
+        <p class="card__subtitle">Top {{ top_duplicates | length }} group(s) by
+        wasted tokens. The canonical chunk (longest version) is highlighted; the
+        other chunks are what promptc would consider redundant.</p>
+      </header>
+
+      <div class="dups">
+        {% for group in top_duplicates %}
+        <article class="dup">
+          <header class="dup__header">
+            <span class="dup__rank">#{{ group.rank }}</span>
+            <span class="dup__kind dup__kind--{{ group.kind }}">{{ group.kind }}</span>
+            <span class="dup__wasted">{{ "{:,}".format(group.wasted_tokens) }} tokens wasted</span>
+            <span class="dup__count dim">{{ group.size }} chunks</span>
+          </header>
+          <div class="dup__chunks">
+            {% for chunk in group.chunks %}
+            <div class="dup__chunk{% if chunk.is_canonical %} dup__chunk--canonical{% endif %}">
+              <div class="dup__chunk-meta">
+                <code class="dup__chunk-path">{{ chunk.file_path }}</code>
+                <span class="dim">chunk {{ chunk.chunk_index }} · {{ "{:,}".format(chunk.tokens) }} tokens</span>
+                {% if chunk.is_canonical %}
+                <span class="dup__badge">canonical</span>
+                {% endif %}
+              </div>
+              <p class="dup__chunk-preview">{{ chunk.preview }}</p>
+            </div>
+            {% endfor %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
     <section class="card">
       <header class="card__header">
         <h2>Top {{ top_files | length }} largest files</h2>
