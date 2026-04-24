@@ -222,3 +222,43 @@ def test_empty_dir_skips_hero_and_exposure(tmp_path: Path) -> None:
     assert "CONTEXT DEBT REPORT" not in result.output
     assert "Skill Context Exposure" not in result.output
     assert "No markdown files" in result.output
+
+
+def test_analyze_writes_html_report_to_cwd_by_default(tmp_path: Path) -> None:
+    _seed_fixture(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(main, ["analyze", str(tmp_path)])
+    assert result.exit_code == 0
+
+    report = Path("promptc-report.html").resolve()
+    assert report.exists(), "analyze should write promptc-report.html to cwd"
+    assert "Full report:" in result.output
+    html = report.read_text(encoding="utf-8")
+    assert "<!DOCTYPE html>" in html
+    assert "CONTEXT DEBT REPORT" in html
+
+
+def test_no_html_flag_skips_report_file(tmp_path: Path) -> None:
+    _seed_fixture(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(main, ["analyze", str(tmp_path), "--no-html"])
+    assert result.exit_code == 0
+    assert not Path("promptc-report.html").exists()
+    assert "Full report:" not in result.output
+
+
+def test_no_html_with_open_warns(tmp_path: Path) -> None:
+    _seed_fixture(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(main, ["analyze", str(tmp_path), "--no-html", "--open"])
+    assert result.exit_code == 0
+    assert "--open has no effect" in result.output
+    assert not Path("promptc-report.html").exists()
+
+
+def test_json_format_does_not_write_html(tmp_path: Path) -> None:
+    _seed_fixture(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(main, ["analyze", str(tmp_path), "--format", "json"])
+    assert result.exit_code == 0
+    assert not Path("promptc-report.html").exists()

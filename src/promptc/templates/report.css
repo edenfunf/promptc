@@ -1,0 +1,323 @@
+/* promptc HTML report — self-contained styles
+   No external fonts, no CDN. All visual state lives in this file plus
+   the inline grade color class on .hero.
+*/
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg:           #0f1115;
+  --bg-elev:     #161a21;
+  --fg:           #e4e8ef;
+  --fg-dim:      #8b92a0;
+  --fg-muted:    #5b616d;
+  --border:      #242933;
+  --accent:      #7dd3fc;
+
+  /* grade palette — bright on dark */
+  --grade-a:      #4ade80;
+  --grade-a-bg:  #0f2a1c;
+  --grade-b:      #86efac;
+  --grade-b-bg:  #132a1f;
+  --grade-c:      #facc15;
+  --grade-c-bg:  #2a2213;
+  --grade-d:      #fb923c;
+  --grade-d-bg:  #2a1a10;
+  --grade-f:      #ef4444;
+  --grade-f-bg:  #2a1010;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 48px 32px;
+}
+
+/* ============ Hero ============ */
+
+.hero {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 56px 40px;
+  margin-bottom: 32px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.3s ease;
+}
+
+.hero--a { background: radial-gradient(circle at top, var(--grade-a-bg), var(--bg-elev)); }
+.hero--b { background: radial-gradient(circle at top, var(--grade-b-bg), var(--bg-elev)); }
+.hero--c { background: radial-gradient(circle at top, var(--grade-c-bg), var(--bg-elev)); }
+.hero--d { background: radial-gradient(circle at top, var(--grade-d-bg), var(--bg-elev)); }
+.hero--f { background: radial-gradient(circle at top, var(--grade-f-bg), var(--bg-elev)); }
+
+.hero__eyebrow {
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+.hero__primary {
+  margin-bottom: 16px;
+}
+
+.hero__number {
+  font-size: clamp(64px, 15vw, 112px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero--a .hero__number { color: var(--grade-a); }
+.hero--b .hero__number { color: var(--grade-b); }
+.hero--c .hero__number { color: var(--grade-c); }
+.hero--d .hero__number { color: var(--grade-d); }
+.hero--f .hero__number { color: var(--grade-f); }
+
+.hero__number-label {
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  margin-top: 8px;
+}
+
+.hero__secondary {
+  font-size: 17px;
+  color: var(--fg);
+  margin: 24px 0 32px;
+}
+
+.hero__secondary strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.hero__grade {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 12px 28px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.hero__grade-label {
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+.hero__grade-value {
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero--a .hero__grade-value { color: var(--grade-a); }
+.hero--b .hero__grade-value { color: var(--grade-b); }
+.hero--c .hero__grade-value { color: var(--grade-c); }
+.hero--d .hero__grade-value { color: var(--grade-d); }
+.hero--f .hero__grade-value { color: var(--grade-f); }
+
+.hero__meta {
+  margin-top: 28px;
+  font-size: 14px;
+  color: var(--fg-dim);
+}
+
+.hero__meta strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* ============ Card / table ============ */
+
+.card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 32px;
+  margin-bottom: 24px;
+}
+
+.card__header {
+  margin-bottom: 20px;
+}
+
+.card h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.01em;
+}
+
+.card__subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fg-dim);
+  line-height: 1.55;
+}
+
+.files {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.files thead th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.files tbody td {
+  padding: 14px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.files tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.col-rank      { width: 40px;  text-align: right; color: var(--fg-muted); }
+.col-path code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; color: var(--fg); }
+.col-role      { width: 120px; }
+.col-num       { width: 110px; text-align: right; }
+.col-bloat     { width: 220px; }
+
+.role {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg-dim);
+  border: 1px solid var(--border);
+}
+
+.role--skill        { color: #7dd3fc; border-color: #1e3a52; }
+.role--instructions { color: #c084fc; border-color: #3a1e52; }
+.role--prompt       { color: #f9a8d4; border-color: #52213d; }
+.role--agent        { color: #fde68a; border-color: #524821; }
+
+.bloat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bloat__bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.bloat__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--grade-c), var(--grade-f));
+  border-radius: 3px;
+}
+
+.bloat__pct {
+  width: 44px;
+  text-align: right;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.dim {
+  color: var(--fg-muted);
+}
+
+.empty {
+  color: var(--fg-dim);
+  font-style: italic;
+  padding: 16px 0;
+  margin: 0;
+}
+
+/* ============ Footer ============ */
+
+.footer {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 32px 48px;
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+
+.footer__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.footer__row strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.footer__path {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--fg-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+
+.disclaimer {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: var(--fg-muted);
+  line-height: 1.55;
+}
+
+/* ============ Responsive ============ */
+
+@media (max-width: 640px) {
+  main { padding: 24px 16px; }
+  .hero { padding: 40px 20px; }
+  .card { padding: 20px 16px; }
+
+  /* Collapse role + bloat columns on narrow screens so path stays legible */
+  .col-role { display: none; }
+  .files tbody td.col-bloat { width: 120px; }
+  .bloat__pct { width: 36px; }
+}

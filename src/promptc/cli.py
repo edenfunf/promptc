@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import webbrowser
 from pathlib import Path
 
 import click
@@ -16,8 +17,28 @@ from promptc.dedup import DedupResult, DuplicateGroup, find_duplicates
 from promptc.exposure import EXPOSURE_NARRATIVE, ExposureReport, analyze_exposure
 from promptc.grade import Grade, compute_grade
 from promptc.models import FileRole, ScanResult
+from promptc.report import DEFAULT_REPORT_FILENAME, render_html, write_report
 from promptc.scanner import scan
 from promptc.tokens import TOKENIZER_DISCLAIMER
+
+
+def _make_console() -> Console:
+    """Return a Console that won't crash on emoji / CJK in legacy Windows consoles.
+
+    Rich's default Windows renderer calls the Win32 Console API directly,
+    which respects the active code page (cp950 / cp1252 etc.) and raises
+    UnicodeEncodeError on non-representable characters that appear in
+    user-scanned files. Reconfigure stdout in place so unrepresentable
+    glyphs are written as '?' instead of crashing; legacy_windows=False
+    forces rich to emit ANSI instead of calling the Win32 API.
+    """
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        try:
+            reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
+    return Console(legacy_windows=False)
 
 
 @click.group(invoke_without_command=True)
@@ -88,18 +109,46 @@ def analyze(
         scan_result.files, threshold=threshold, min_words=min_words
     )
     exposure_result = analyze_exposure(scan_result.files)
+    total_tokens = scan_result.total_tokens
+    bloat_ratio = (
+        dedup_result.total_wasted_tokens / total_tokens if total_tokens else 0.0
+    )
+    grade = compute_grade(bloat_ratio)
 
     if output_format.lower() == "json":
-        _print_json(scan_result, dedup_result, exposure_result)
+        _print_json(scan_result, dedup_result, exposure_result, grade)
         return
 
-    console = Console()
-    _print_terminal(console, scan_result, dedup_result, exposure_result, verbose=verbose)
+    console = _make_console()
+    _print_terminal(
+        console,
+        scan_result,
+        dedup_result,
+        exposure_result,
+        grade,
+        verbose=verbose,
+    )
 
-    if not no_html and verbose:
-        console.print("[dim](HTML report generation lands in Week 2.)[/dim]")
-    if open_report and verbose:
-        console.print("[dim](--open is a no-op until the HTML report ships.)[/dim]")
+    if no_html:
+        if open_report:
+            console.print(
+                "[yellow]--open has no effect when --no-html is set.[/yellow]"
+            )
+        return
+
+    report_path = Path.cwd() / DEFAULT_REPORT_FILENAME
+    html = render_html(scan_result, dedup_result, exposure_result, grade)
+    try:
+        written = write_report(report_path, html)
+    except OSError as exc:
+        console.print(f"[red]Could not write HTML report:[/red] {exc}")
+        return
+
+    console.print()
+    console.print(f"[bold]Full report:[/bold] [cyan]{written}[/cyan]")
+
+    if open_report:
+        webbrowser.open(written.as_uri())
 
 
 def _print_terminal(
@@ -107,6 +156,7 @@ def _print_terminal(
     scan_result: ScanResult,
     dedup_result: DedupResult,
     exposure_result: ExposureReport,
+    grade: Grade,
     *,
     verbose: bool,
 ) -> None:
@@ -119,8 +169,7 @@ def _print_terminal(
 
     total_tokens = scan_result.total_tokens
     wasted = dedup_result.total_wasted_tokens
-    ratio = (wasted / total_tokens) if total_tokens else 0.0
-    grade = compute_grade(ratio)
+    ratio = grade.bloat_ratio
 
     _print_hero(console, grade=grade, wasted=wasted, ratio=ratio, total=total_tokens)
     console.print()
@@ -403,11 +452,8 @@ def _print_json(
     scan_result: ScanResult,
     dedup_result: DedupResult,
     exposure_result: ExposureReport,
+    grade: Grade,
 ) -> None:
-    total = scan_result.total_tokens
-    wasted = dedup_result.total_wasted_tokens
-    ratio = (wasted / total) if total else 0.0
-    grade = compute_grade(ratio)
     payload = {
         "root": str(scan_result.root),
         "total_files": scan_result.total_files,
