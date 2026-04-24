@@ -9,6 +9,7 @@ from rich.table import Table
 
 from promptc import __version__
 from promptc.dedup import DedupResult, DuplicateGroup, find_duplicates
+from promptc.exposure import EXPOSURE_NARRATIVE, ExposureReport, analyze_exposure
 from promptc.models import FileRole, ScanResult
 from promptc.scanner import scan
 from promptc.tokens import TOKENIZER_DISCLAIMER
@@ -55,13 +56,14 @@ def analyze(
     """
     scan_result = scan(path)
     dedup_result = find_duplicates(scan_result.files)
+    exposure_result = analyze_exposure(scan_result.files)
 
     if output_format.lower() == "json":
-        _print_json(scan_result, dedup_result)
+        _print_json(scan_result, dedup_result, exposure_result)
         return
 
     console = Console()
-    _print_terminal(console, scan_result, dedup_result, verbose=verbose)
+    _print_terminal(console, scan_result, dedup_result, exposure_result, verbose=verbose)
 
     if not no_html and verbose:
         console.print("[dim](HTML report generation lands in Week 2.)[/dim]")
@@ -73,6 +75,7 @@ def _print_terminal(
     console: Console,
     scan_result: ScanResult,
     dedup_result: DedupResult,
+    exposure_result: ExposureReport,
     *,
     verbose: bool,
 ) -> None:
@@ -108,10 +111,58 @@ def _print_terminal(
         console.print()
         _print_duplicate_groups(console, dedup_result, limit=5, verbose=verbose)
 
+    if exposure_result.skill_count:
+        console.print()
+        _print_exposure(console, exposure_result, limit=5)
+
     _print_warnings(console, scan_result)
 
     console.print()
     console.print(f"[dim]{TOKENIZER_DISCLAIMER}[/dim]")
+
+
+def _print_exposure(console: Console, report: ExposureReport, *, limit: int) -> None:
+    console.print("[bold]Progressive Disclosure Exposure[/bold] [dim](skills only)[/dim]")
+
+    promised = report.total_promised
+    worst = report.total_worst_case
+    mult = report.multiplier
+    mult_display = f"{mult:.1f}x" if mult is not None else "n/a"
+
+    summary = Table(show_header=False, box=None, pad_edge=False)
+    summary.add_column(style="dim")
+    summary.add_column(justify="right")
+    summary.add_row("Promised load (name + description)", f"{promised:,} tokens")
+    summary.add_row("Worst-case load (full SKILL.md)", f"{worst:,} tokens")
+    summary.add_row("Exposure multiplier", f"[red]{mult_display}[/red]")
+    console.print(summary)
+
+    top = [f for f in report.top_by_worst_case(limit) if f.worst_case_tokens]
+    if top:
+        console.print()
+        console.print("[bold]Top skills by worst-case load:[/bold]")
+        for f in top:
+            if f.multiplier is None:
+                mult_str = "[yellow]no description[/yellow]"
+            else:
+                mult_str = f"[red]{f.multiplier:.1f}x[/red]"
+            console.print(
+                f"  {f.file_path}  "
+                f"[dim]{f.worst_case_tokens:,} worst / {f.promised_tokens:,} promised[/dim]  "
+                f"{mult_str}"
+            )
+
+    if report.skills_without_description:
+        count = len(report.skills_without_description)
+        console.print()
+        console.print(
+            f"[yellow]{count} skill(s) have no description field[/yellow] -- "
+            "promised load is 0, so they load the full body regardless of "
+            "progressive disclosure."
+        )
+
+    console.print()
+    console.print(f"[dim]{EXPOSURE_NARRATIVE}[/dim]")
 
 
 def _print_file_table(
@@ -245,7 +296,11 @@ def _group_to_dict(group: DuplicateGroup) -> dict:
     }
 
 
-def _print_json(scan_result: ScanResult, dedup_result: DedupResult) -> None:
+def _print_json(
+    scan_result: ScanResult,
+    dedup_result: DedupResult,
+    exposure_result: ExposureReport,
+) -> None:
     payload = {
         "root": str(scan_result.root),
         "total_files": scan_result.total_files,
@@ -256,6 +311,24 @@ def _print_json(scan_result: ScanResult, dedup_result: DedupResult) -> None:
             "total_wasted_tokens": dedup_result.total_wasted_tokens,
             "per_file_wasted": dedup_result.per_file_wasted,
             "groups": [_group_to_dict(g) for g in dedup_result.groups],
+        },
+        "progressive_disclosure": {
+            "skill_count": exposure_result.skill_count,
+            "total_promised_tokens": exposure_result.total_promised,
+            "total_worst_case_tokens": exposure_result.total_worst_case,
+            "exposure_multiplier": exposure_result.multiplier,
+            "skills_without_description": exposure_result.skills_without_description,
+            "narrative": EXPOSURE_NARRATIVE,
+            "files": [
+                {
+                    "path": f.file_path,
+                    "name": f.name,
+                    "promised_tokens": f.promised_tokens,
+                    "worst_case_tokens": f.worst_case_tokens,
+                    "multiplier": f.multiplier,
+                }
+                for f in exposure_result.files
+            ],
         },
         "files": [
             {
