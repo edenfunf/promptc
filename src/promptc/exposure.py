@@ -1,32 +1,35 @@
-"""Progressive disclosure exposure analysis.
+"""Skill context-exposure analysis.
 
-Background (cited, not asserted):
-    Claude Code's Skills documentation describes "progressive disclosure":
-    at session start only the frontmatter metadata (name + description)
-    loads into the context window; the full SKILL.md body is fetched on
-    demand when the skill is actually invoked.
+Background (cited from Claude Code's public Skills documentation):
+    "skill descriptions are loaded into context so Claude knows what's
+    available, but full skill content only loads when invoked"
 
-        https://docs.anthropic.com/en/docs/claude-code/skills
+    "a skill's body loads only when it's used, so long reference
+    material costs almost nothing until you need it"
 
-    Community reports describe configurations where the full body loads
-    at session start anyway:
+        https://code.claude.com/docs/en/skills
+
+    Community reports describe setups where the full body ends up in
+    context anyway:
 
         https://github.com/anthropics/claude-code/issues/14882
 
-This module computes the gap between those two scenarios *without*
-claiming which one applies to any given user. We measure the ceiling.
+This module computes the gap between the two scenarios described above
+*without* claiming which one applies to any given user. We measure the
+ceiling.
 
-Definitions used below:
-    - promised load    = tokens for the frontmatter `name` and `description`
-                         values (what the docs say is loaded at startup).
-    - worst-case load  = tokens for the entire file (what the community
-                         reports describe when progressive disclosure
-                         does not kick in).
-    - exposure multiplier = worst-case / promised, per file and aggregate.
+Definitions:
+    - promised load        = tokens for the frontmatter `name` and
+                             `description` values (what the docs
+                             describe as the at-startup cost).
+    - worst-case load      = tokens for the entire SKILL.md file.
+    - exposure multiplier  = worst-case / promised, per file and
+                             aggregate.
 
-Only SKILL files are subject to progressive disclosure. INSTRUCTIONS
-(CLAUDE.md / AGENTS.md), PROMPTS (slash commands), and AGENTS are loaded
-in full regardless, so they are excluded from this analysis.
+Only SKILL.md entrypoints are analyzed. CLAUDE.md / AGENTS.md,
+slash-command prompts, subagents, and supporting files inside a skill
+directory are not subject to the body-on-demand loading pattern in the
+same way, so they are excluded.
 """
 
 from __future__ import annotations
@@ -36,22 +39,23 @@ from dataclasses import dataclass, field
 from promptc.models import FileRole, ParsedFile
 from promptc.tokens import count_tokens
 
-ANTHROPIC_DOCS_URL = "https://docs.anthropic.com/en/docs/claude-code/skills"
+ANTHROPIC_DOCS_URL = "https://code.claude.com/docs/en/skills"
 COMMUNITY_ISSUE_URL = "https://github.com/anthropics/claude-code/issues/14882"
 
 EXPOSURE_NARRATIVE = (
-    "Claude Code's Skills documentation describes progressive disclosure: "
-    "at session start only frontmatter metadata (name + description) loads "
-    "into the context window; the full SKILL.md body is fetched on demand "
-    "when the skill is invoked."
+    "Claude Code's Skills documentation describes the loading model: skill "
+    "descriptions load into context at session start so Claude knows what's "
+    "available, while the full SKILL.md body loads only when the skill is "
+    "invoked."
     f"\n  Docs:  {ANTHROPIC_DOCS_URL}"
     "\n"
-    "\nCommunity reports describe setups where the full body loads anyway."
+    "\nCommunity reports describe setups where the full body ends up in "
+    "context anyway."
     f"\n  Issue: {COMMUNITY_ISSUE_URL}"
     "\n"
-    "\nThe multiplier above is the ceiling of your exposure if progressive "
-    "disclosure does not kick in. This tool makes no claim about whether "
-    "that happens in your setup; it measures the upper bound."
+    "\nThe multiplier above is the ceiling of your exposure in the second "
+    "scenario. This tool makes no claim about whether that happens in your "
+    "setup; it measures the upper bound."
 )
 
 

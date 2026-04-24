@@ -22,6 +22,16 @@ def test_classify_skill_flat() -> None:
     assert classify(("skills", "security.md")) == FileRole.SKILL
 
 
+def test_classify_skill_support_file_is_other() -> None:
+    assert classify(("skills", "security", "reference.md")) == FileRole.OTHER
+    assert classify(("skills", "claude-api", "examples", "streaming.md")) == FileRole.OTHER
+    assert classify(("skills", "deep", "nested", "support", "file.md")) == FileRole.OTHER
+
+
+def test_classify_skill_md_case_insensitive() -> None:
+    assert classify(("skills", "security", "Skill.md")) == FileRole.SKILL
+
+
 def test_classify_prompt() -> None:
     assert classify(("commands", "review.md")) == FileRole.PROMPT
 

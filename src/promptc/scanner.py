@@ -8,11 +8,21 @@ The scanner is intentionally conservative:
 
 Role classification (relative to scan root):
     CLAUDE.md or AGENTS.md at root         -> INSTRUCTIONS
-    skills/<name>/SKILL.md                 -> SKILL
-    skills/<name>.md                       -> SKILL
+    skills/<name>/SKILL.md                 -> SKILL          (entrypoint)
+    skills/<name>.md                       -> SKILL          (flat layout)
+    skills/<name>/<anything else>.md       -> OTHER          (support file)
     commands/*.md                          -> PROMPT
     agents/*.md                            -> AGENT
     anything else                          -> OTHER
+
+Why supporting files inside a skill directory are OTHER, not SKILL:
+    The Claude Code Skills documentation defines SKILL.md as the skill's
+    required entrypoint; other files in the directory are optional
+    templates / examples / scripts / reference material that load only
+    when the skill body references them. Counting them as SKILL files
+    inflates the exposure multiplier because their worst-case tokens
+    are large while their promised tokens are zero (they have no
+    frontmatter of their own).
 """
 
 from __future__ import annotations
@@ -40,7 +50,17 @@ def classify(relative_parts: tuple[str, ...]) -> FileRole:
         return FileRole.INSTRUCTIONS
 
     if "skills" in relative_parts:
-        return FileRole.SKILL
+        # `skills/<name>/SKILL.md` is the entrypoint; flat `skills/<name>.md`
+        # also counts. Everything else under `skills/**` is a support file.
+        if name.lower() == "skill.md":
+            return FileRole.SKILL
+        try:
+            skills_idx = relative_parts.index("skills")
+        except ValueError:
+            skills_idx = 0
+        if len(relative_parts) - skills_idx == 2:
+            return FileRole.SKILL
+        return FileRole.OTHER
     if "commands" in relative_parts:
         return FileRole.PROMPT
     if "agents" in relative_parts:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import click
@@ -198,7 +199,7 @@ def _print_savings(console: Console, *, wasted: int, total: int) -> None:
 
 
 def _print_exposure(console: Console, report: ExposureReport, *, limit: int) -> None:
-    console.print("[bold]Progressive Disclosure Exposure[/bold] [dim](skills only)[/dim]")
+    console.print("[bold]Skill Context Exposure[/bold] [dim](worst-case load)[/dim]")
 
     promised = report.total_promised
     worst = report.total_worst_case
@@ -433,7 +434,11 @@ def _print_json(
         ],
         "warnings": scan_result.warnings,
     }
-    click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+    # Write UTF-8 bytes directly to stdout so emoji / CJK in parsed skills
+    # don't trip the Windows cp950 / cp1252 default console encoding.
+    encoded = json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8")
+    sys.stdout.buffer.write(encoded)
+    sys.stdout.buffer.write(b"\n")
 
 
 if __name__ == "__main__":

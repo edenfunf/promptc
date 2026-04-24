@@ -114,8 +114,24 @@ def test_exposure_narrative_cites_both_sides() -> None:
     assert ANTHROPIC_DOCS_URL in EXPOSURE_NARRATIVE
     assert COMMUNITY_ISSUE_URL in EXPOSURE_NARRATIVE
     lowered = EXPOSURE_NARRATIVE.lower()
-    assert "progressive disclosure" in lowered
+    # Describe the loading behavior in language that mirrors the docs
+    # (body loads on demand) rather than asserting Anthropic uses a
+    # specific technical label for it.
+    assert "body" in lowered
+    assert "invoked" in lowered
     assert "makes no claim" in lowered or "no claim" in lowered
+
+
+def test_exposure_narrative_does_not_claim_anthropic_uses_label() -> None:
+    # The docs describe the mechanism but do not use "progressive
+    # disclosure" as a term. Avoid putting that phrase in their mouth.
+    assert "progressive disclosure" not in EXPOSURE_NARRATIVE.lower()
+
+
+def test_anthropic_docs_url_points_to_current_domain() -> None:
+    # docs.anthropic.com/en/docs/claude-code/skills 301-redirects to
+    # code.claude.com/docs/en/skills; use the canonical target directly.
+    assert "code.claude.com" in ANTHROPIC_DOCS_URL
 
 
 def test_multiplier_none_when_all_skills_lack_description(tmp_path: Path) -> None:
