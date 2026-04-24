@@ -46,12 +46,36 @@ def main(ctx: click.Context) -> None:
 @click.option("--no-html", is_flag=True, help="Skip HTML report generation.")
 @click.option("--open", "open_report", is_flag=True, help="Open the HTML report after analysis.")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed progress.")
+@click.option(
+    "--threshold",
+    type=click.FloatRange(0.0, 1.0),
+    default=0.85,
+    show_default=True,
+    help="Jaccard similarity at or above which chunks are treated as duplicates.",
+)
+@click.option(
+    "--min-words",
+    type=click.IntRange(1, None),
+    default=5,
+    show_default=True,
+    help="Skip paragraph chunks with fewer unique words after normalization.",
+)
+@click.option(
+    "--exclude",
+    "excludes",
+    metavar="PATTERN",
+    multiple=True,
+    help="Glob pattern (matched against relative path or basename) to skip. Repeatable.",
+)
 def analyze(
     path: Path,
     output_format: str,
     no_html: bool,
     open_report: bool,
     verbose: bool,
+    threshold: float,
+    min_words: int,
+    excludes: tuple[str, ...],
 ) -> None:
     """Analyze a .claude/ directory and report context debt.
 
@@ -59,8 +83,10 @@ def analyze(
     `.claude/` subdirectory, that subdirectory is scanned; otherwise PATH
     itself is scanned.
     """
-    scan_result = scan(path)
-    dedup_result = find_duplicates(scan_result.files)
+    scan_result = scan(path, excludes=excludes)
+    dedup_result = find_duplicates(
+        scan_result.files, threshold=threshold, min_words=min_words
+    )
     exposure_result = analyze_exposure(scan_result.files)
 
     if output_format.lower() == "json":

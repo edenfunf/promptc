@@ -1,0 +1,14 @@
+# Normalize line endings on checkin: LF in the repo, native in the working tree.
+* text=auto eol=lf
+
+# Binary assets: no normalization.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+
+# Windows-only shell files keep CRLF so cmd.exe / PowerShell handle them cleanly.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

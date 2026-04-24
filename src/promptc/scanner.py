@@ -27,7 +27,9 @@ Why supporting files inside a skill directory are OTHER, not SKILL:
 
 from __future__ import annotations
 
+import fnmatch
 import os
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 
 from promptc.models import FileRole, ScanResult
@@ -75,10 +77,34 @@ def resolve_scan_root(path: Path) -> Path:
     return claude_dir if claude_dir.is_dir() else path
 
 
-def scan(path: Path) -> ScanResult:
-    """Walk `path` and return a ScanResult populated with parsed files and warnings."""
+def _is_excluded(relative_display: str, patterns: tuple[str, ...]) -> bool:
+    """Return True if the POSIX-style relative path matches any glob pattern.
+
+    Patterns use fnmatch semantics (``*`` matches within a segment, not across
+    ``/``; use ``**`` to cross segments). Matching is tried against the full
+    path and against the basename, so ``--exclude README.md`` works even when
+    the file lives deep in a tree.
+    """
+    if not patterns:
+        return False
+    basename = relative_display.rsplit("/", 1)[-1]
+    for pattern in patterns:
+        if fnmatch.fnmatch(relative_display, pattern):
+            return True
+        if fnmatch.fnmatch(basename, pattern):
+            return True
+    return False
+
+
+def scan(path: Path, *, excludes: Iterable[str] = ()) -> ScanResult:
+    """Walk `path` and return a ScanResult populated with parsed files and warnings.
+
+    ``excludes`` is an optional iterable of fnmatch-style glob patterns applied
+    to the POSIX relative path (or basename) of each candidate file.
+    """
     root = resolve_scan_root(path).resolve()
     result = ScanResult(root=root)
+    exclude_patterns = tuple(excludes)
 
     if not root.exists():
         result.warnings.append(f"path does not exist: {root}")
@@ -105,6 +131,10 @@ def scan(path: Path) -> ScanResult:
 
             rel_parts = tuple(PurePosixPath(relative.as_posix()).parts)
             relative_display = relative.as_posix()
+
+            if _is_excluded(relative_display, exclude_patterns):
+                continue
+
             role = classify(rel_parts)
 
             try:
