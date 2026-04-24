@@ -124,8 +124,8 @@ def _promised_tokens(parsed: ParsedFile) -> int:
 def analyze_exposure(files: list[ParsedFile]) -> ExposureReport:
     """Build an :class:`ExposureReport` over the SKILL files in ``files``.
 
-    Non-skill files (instructions, prompts, agents, other) are not subject
-    to progressive disclosure and are excluded.
+    Non-skill files (instructions, prompts, agents, other) are loaded in
+    full regardless and are excluded from this analysis.
     """
     report = ExposureReport()
 

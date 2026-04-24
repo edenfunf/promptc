@@ -260,8 +260,8 @@ def _print_exposure(console: Console, report: ExposureReport, *, limit: int) -> 
         console.print()
         console.print(
             f"[yellow]{count} skill(s) have no description field[/yellow] -- "
-            "promised load is 0, so they load the full body regardless of "
-            "progressive disclosure."
+            "promised load is 0, so there is no startup metadata to match "
+            "against; the full body is the only way to know what they do."
         )
 
     console.print()
