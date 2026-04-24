@@ -4,12 +4,16 @@ import json
 from pathlib import Path
 
 import click
-from rich.console import Console
+from rich.align import Align
+from rich.console import Console, Group
+from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from promptc import __version__
 from promptc.dedup import DedupResult, DuplicateGroup, find_duplicates
 from promptc.exposure import EXPOSURE_NARRATIVE, ExposureReport, analyze_exposure
+from promptc.grade import Grade, compute_grade
 from promptc.models import FileRole, ScanResult
 from promptc.scanner import scan
 from promptc.tokens import TOKENIZER_DISCLAIMER
@@ -89,18 +93,15 @@ def _print_terminal(
     total_tokens = scan_result.total_tokens
     wasted = dedup_result.total_wasted_tokens
     ratio = (wasted / total_tokens) if total_tokens else 0.0
+    grade = compute_grade(ratio)
+
+    _print_hero(console, grade=grade, wasted=wasted, ratio=ratio, total=total_tokens)
+    console.print()
 
     console.print(
         f"[bold]Scanned:[/bold] {scan_result.root}  "
         f"[dim]({scan_result.total_files} files, {total_tokens:,} tokens)[/dim]"
     )
-    if dedup_result.total_groups:
-        console.print(
-            f"[bold]Duplicate chunks:[/bold] {dedup_result.total_groups} groups  "
-            f"[red]{wasted:,} tokens wasted ({ratio:.1%})[/red]"
-        )
-    else:
-        console.print("[bold]Duplicate chunks:[/bold] [green]none found[/green]")
     console.print()
 
     _print_file_table(console, scan_result, dedup_result)
@@ -115,10 +116,85 @@ def _print_terminal(
         console.print()
         _print_exposure(console, exposure_result, limit=5)
 
+    if wasted:
+        console.print()
+        _print_savings(console, wasted=wasted, total=total_tokens)
+
     _print_warnings(console, scan_result)
 
     console.print()
     console.print(f"[dim]{TOKENIZER_DISCLAIMER}[/dim]")
+
+
+def _print_hero(
+    console: Console,
+    *,
+    grade: Grade,
+    wasted: int,
+    ratio: float,
+    total: int,
+) -> None:
+    title = Text("CONTEXT DEBT REPORT", style="bold")
+    wasted_line = Text(justify="center")
+    wasted_line.append(f"{wasted:,}", style=f"bold {grade.color}")
+    wasted_line.append(" tokens wasted", style="dim")
+
+    ratio_line = Text(
+        f"{ratio:.1%} of your {total:,}-token context",
+        style="dim",
+        justify="center",
+    )
+
+    grade_line = Text(justify="center")
+    grade_line.append("Grade: ", style="dim")
+    grade_line.append(grade.display, style=f"bold {grade.color}")
+
+    body = Group(
+        Align.center(wasted_line),
+        Align.center(ratio_line),
+        Text(""),
+        Align.center(grade_line),
+    )
+
+    panel = Panel(
+        body,
+        title=title,
+        border_style=grade.color,
+        padding=(1, 4),
+    )
+    console.print(panel)
+
+
+def _print_savings(console: Console, *, wasted: int, total: int) -> None:
+    post_total = max(total - wasted, 0)
+    post_ratio = 0.0
+    post_grade = compute_grade(post_ratio)
+
+    console.print("[bold]Estimated Savings[/bold]")
+    table = Table(show_header=False, box=None, pad_edge=False)
+    table.add_column(style="dim")
+    table.add_column(justify="right")
+    table.add_column(justify="right", style="dim")
+    table.add_row(
+        "If duplicates removed",
+        f"[green]-{wasted:,} tokens[/green]",
+        f"({wasted / total:.1%})" if total else "",
+    )
+    table.add_row(
+        "Post-dedup context",
+        f"{post_total:,} tokens",
+        "",
+    )
+    table.add_row(
+        "Post-dedup grade (ceiling)",
+        f"[{post_grade.color}]{post_grade.display}[/{post_grade.color}]",
+        "",
+    )
+    console.print(table)
+    console.print(
+        "[dim]Ceiling assumes every duplicate promptc flagged is removed. "
+        "Real-world savings depend on which ones you choose to keep.[/dim]"
+    )
 
 
 def _print_exposure(console: Console, report: ExposureReport, *, limit: int) -> None:
@@ -301,11 +377,21 @@ def _print_json(
     dedup_result: DedupResult,
     exposure_result: ExposureReport,
 ) -> None:
+    total = scan_result.total_tokens
+    wasted = dedup_result.total_wasted_tokens
+    ratio = (wasted / total) if total else 0.0
+    grade = compute_grade(ratio)
     payload = {
         "root": str(scan_result.root),
         "total_files": scan_result.total_files,
         "total_tokens": scan_result.total_tokens,
         "tokenizer_disclaimer": TOKENIZER_DISCLAIMER,
+        "grade": {
+            "letter": grade.letter,
+            "modifier": grade.modifier,
+            "display": grade.display,
+            "bloat_ratio": grade.bloat_ratio,
+        },
         "duplicates": {
             "total_groups": dedup_result.total_groups,
             "total_wasted_tokens": dedup_result.total_wasted_tokens,
