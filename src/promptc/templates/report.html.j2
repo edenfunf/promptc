@@ -110,6 +110,14 @@
     </section>
     {% endif %}
 
+    {% if hero_state != "insufficient" %}
+    <p class="hero-disclaimer">
+      Token counts via OpenAI's <code>cl100k_base</code> as a Claude
+      tokenizer proxy. Grade thresholds are heuristics. See
+      <a href="#methodology">how this is graded</a> for full caveats.
+    </p>
+    {% endif %}
+
     {% if exposure.skill_count and exposure.multiplier and not scan.is_insufficient %}
     <section class="card exposure">
       <header class="card__header">
@@ -229,7 +237,8 @@
         <article class="dup">
           <header class="dup__header">
             <span class="dup__rank">#{{ group.rank }}</span>
-            <span class="dup__kind dup__kind--{{ group.kind }}">{{ group.kind }}</span>
+            <span class="dup__kind dup__kind--{{ group.kind }}"
+                  title="{% if group.kind == 'exact' %}All chunks normalize to the same string after stripping markdown.{% else %}At least 0.85 Jaccard similarity on word sets after normalization.{% endif %}">{{ group.kind }}</span>
             <span class="dup__wasted">{{ "{:,}".format(group.wasted_tokens) }} tokens wasted</span>
             <span class="dup__count dim">{{ group.size }} chunks</span>
           </header>
@@ -268,8 +277,8 @@
             <th class="col-rank">#</th>
             <th class="col-path">File</th>
             <th class="col-role">Role</th>
-            <th class="col-num">Tokens</th>
-            <th class="col-bloat">Bloat</th>
+            <th class="col-num" title="Total tokens including frontmatter and body">Tokens</th>
+            <th class="col-bloat" title="Share of this file's body that promptc flagged as duplicated with content elsewhere">Bloat</th>
           </tr>
         </thead>
         <tbody>
@@ -301,6 +310,74 @@
       {% endif %}
     </section>
 
+    <section class="card methodology" id="methodology">
+      <header class="card__header">
+        <h2>How this is graded</h2>
+        <p class="card__subtitle">promptc's grades and metrics are heuristics,
+        not benchmarks. This section explains exactly how each number above was
+        computed, so you can reproduce or contest any of them.</p>
+      </header>
+
+      <h3 class="methodology__heading">Efficiency Grade</h3>
+      <p>The grade reflects the <strong>duplicate-content ratio</strong>:
+      the share of skill-body tokens that promptc flagged as a near-duplicate
+      of content elsewhere in the scan.</p>
+      <pre class="methodology__formula">bloat_ratio = duplicate_tokens / total_tokens</pre>
+      <table class="methodology__rubric">
+        <thead>
+          <tr><th>Grade</th><th>Bloat ratio</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="grade-pill grade-pill--a">A</span></td><td>&lt; 5%</td></tr>
+          <tr><td><span class="grade-pill grade-pill--b">B</span></td><td>5% &mdash; 15%</td></tr>
+          <tr><td><span class="grade-pill grade-pill--c">C</span></td><td>15% &mdash; 25%</td></tr>
+          <tr><td><span class="grade-pill grade-pill--d">D</span></td><td>25% &mdash; 40%</td></tr>
+          <tr><td><span class="grade-pill grade-pill--f">F</span></td><td>&ge; 40%</td></tr>
+        </tbody>
+      </table>
+      <p>Each non-F letter splits into <code>+</code> (lower bloat half of the
+      bracket) and <code>-</code> (upper half). F has no modifier.</p>
+      <p class="methodology__caveat"><strong>These thresholds are heuristic.</strong>
+      They were chosen by intuition before any reference distribution
+      existed. v0.2 will replace them with empirical breakpoints derived from
+      a corpus of real <code>.claude/</code> directories. Contributions
+      welcome — see the project's roadmap.</p>
+
+      <h3 class="methodology__heading">Skill Context Exposure</h3>
+      <p>The exposure multiplier measures the ceiling cost if Claude loads
+      a skill's full body instead of just its description at session start:</p>
+      <pre class="methodology__formula">multiplier = SKILL.md body tokens / description tokens</pre>
+      <p>Both numerator and denominator are <em>content tokens</em> —
+      frontmatter overhead (delimiters, name, other fields) is excluded from
+      both sides, so the ratio is symmetric.</p>
+      <p>The behavior we're measuring is described in
+      <a href="{{ anthropic_docs_url }}" rel="noopener">Claude Code's Skills
+      documentation</a>: descriptions load at startup, full bodies on demand.
+      Community reports describe setups where the full body ends up in
+      context anyway — see
+      <a href="{{ community_issue_url }}" rel="noopener">claude-code#14882</a>.
+      promptc makes no claim about whether that happens in your setup; it
+      measures the upper bound.</p>
+
+      <h3 class="methodology__heading">Insufficient data</h3>
+      <p>The "Not enough to audit yet" hero appears when:</p>
+      <ul class="methodology__list">
+        <li>fewer than 3 SKILL.md files <strong>OR</strong></li>
+        <li>fewer than 1,000 aggregate body tokens across skills</li>
+      </ul>
+      <p class="methodology__caveat">These thresholds are heuristic too.
+      They exist so a single tiny skill, or a few placeholder skills, doesn't
+      get a misleading A+. They are not empirically calibrated.</p>
+
+      <h3 class="methodology__heading">Token counts</h3>
+      <p>{{ disclaimer }}</p>
+      <p class="methodology__caveat">Error magnitude on CJK and code-heavy
+      content is unmeasured but expected to be larger than on prose. Run
+      <code>scripts/validate_tokenizer.py</code> with an Anthropic API key
+      to compare cl100k_base against Claude's <code>count_tokens</code>
+      endpoint on your own corpus.</p>
+    </section>
+
   </main>
 
   <footer class="footer">
@@ -308,7 +385,6 @@
       <span>Generated by <strong>promptc</strong> v{{ version }}</span>
       <span class="footer__path">{{ scan.root }}</span>
     </div>
-    <p class="disclaimer">{{ disclaimer }}</p>
   </footer>
 
 </body>

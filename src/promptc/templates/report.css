@@ -639,6 +639,154 @@ main {
   word-break: break-word;
 }
 
+/* ============ Hero disclaimer (short, adjacent to hero) ============ */
+
+.hero-disclaimer {
+  margin: -16px 0 24px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  text-align: center;
+  line-height: 1.55;
+}
+
+.hero-disclaimer code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.hero-disclaimer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.hero-disclaimer a:hover {
+  text-decoration: underline;
+}
+
+/* ============ Methodology section ============ */
+
+.methodology h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 24px 0 8px 0;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+}
+
+.methodology__heading:first-of-type {
+  margin-top: 8px;
+}
+
+.methodology p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--fg);
+  margin: 0 0 12px 0;
+}
+
+.methodology code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--fg);
+}
+
+.methodology__formula {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin: 8px 0 16px;
+  color: var(--accent);
+  overflow-x: auto;
+}
+
+.methodology__rubric {
+  border-collapse: collapse;
+  margin: 8px 0 16px;
+  font-size: 13px;
+}
+
+.methodology__rubric thead th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  padding: 8px 16px 6px 0;
+  font-weight: 600;
+}
+
+.methodology__rubric tbody td {
+  padding: 6px 16px 6px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.grade-pill {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  text-align: center;
+  line-height: 28px;
+  font-weight: 700;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.grade-pill--a { background: var(--grade-a-bg); color: var(--grade-a); border: 1px solid rgba(74, 222, 128, 0.3); }
+.grade-pill--b { background: var(--grade-b-bg); color: var(--grade-b); border: 1px solid rgba(134, 239, 172, 0.3); }
+.grade-pill--c { background: var(--grade-c-bg); color: var(--grade-c); border: 1px solid rgba(250, 204, 21, 0.3); }
+.grade-pill--d { background: var(--grade-d-bg); color: var(--grade-d); border: 1px solid rgba(251, 146, 60, 0.3); }
+.grade-pill--f { background: var(--grade-f-bg); color: var(--grade-f); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+.methodology__caveat {
+  background: rgba(250, 204, 21, 0.06);
+  border-left: 3px solid rgba(250, 204, 21, 0.4);
+  padding: 10px 14px;
+  margin: 12px 0 16px;
+  font-size: 13px;
+  color: var(--fg);
+  line-height: 1.6;
+  border-radius: 0 4px 4px 0;
+}
+
+.methodology__caveat strong {
+  color: #fde68a;
+}
+
+.methodology__caveat code {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.methodology__list {
+  margin: 8px 0 16px;
+  padding-left: 24px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--fg);
+}
+
+.methodology__list li {
+  margin-bottom: 4px;
+}
+
+.methodology a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.methodology a:hover {
+  text-decoration: underline;
+}
+
 /* ============ Footer ============ */
 
 .footer {

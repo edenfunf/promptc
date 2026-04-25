@@ -245,7 +245,10 @@ def test_render_html_hides_exposure_when_no_skills(tmp_path: Path) -> None:
     claude.mkdir()
     (claude / "CLAUDE.md").write_text("# only instructions\n", encoding="utf-8")
     html = render_html(*_analyze(tmp_path))
-    assert "Skill Context Exposure" not in html
+    # The exposure CARD must not render; the term may still appear in the
+    # methodology section (which always renders as informational reference).
+    assert 'class="card exposure"' not in html
+    assert "Worst-case load" not in html
 
 
 def test_render_html_renders_duplicates_section(tmp_path: Path) -> None:
@@ -330,8 +333,9 @@ def test_render_html_insufficient_state_renders_distinct_hero(tmp_path: Path) ->
     # Per D-Δ1: insufficient copy must surface the Cursor v0.2 note.
     assert ".cursor/rules/" in html
     assert "v0.2" in html
-    # Exposure section must not render in insufficient state.
-    assert "Skill Context Exposure" not in html
+    # Exposure CARD must not render in insufficient state (methodology section
+    # may still mention "Skill Context Exposure" as a reference heading).
+    assert 'class="card exposure"' not in html
 
 
 def test_render_html_debt_state_shows_multiplier_in_hero(tmp_path: Path) -> None:
@@ -385,6 +389,68 @@ def test_render_html_surfaces_cursor_sibling_warning(tmp_path: Path) -> None:
     assert ".cursor/rules/" in html
     assert "2 file" in html  # count surfaced
     assert "v0.2" in html
+
+
+def test_methodology_section_present_with_thresholds_and_caveats(tmp_path: Path) -> None:
+    """Per Persona C re-test: methodology must ship at launch, not Day 12 deferred.
+
+    Asserts that the report exposes the formulae, the threshold table, and
+    honest 'heuristic' caveats — these together neutralise the rewritten
+    HN comment about an undefended grade being elevated to entire product.
+    """
+    _seed(tmp_path)
+    html = render_html(*_analyze(tmp_path))
+
+    # Section header
+    assert 'id="methodology"' in html
+    assert "How this is graded" in html
+
+    # Formulae expressed exactly
+    assert "bloat_ratio = duplicate_tokens / total_tokens" in html
+    assert "multiplier = SKILL.md body tokens / description tokens" in html
+
+    # Threshold table includes all 5 letter grades and the percentage breakpoints
+    for letter in ("A", "B", "C", "D", "F"):
+        assert f"grade-pill--{letter.lower()}" in html
+    for pct in ("5%", "15%", "25%", "40%"):
+        assert pct in html
+
+    # Honest caveats — the language Persona C said was missing
+    flat = " ".join(html.split()).lower()
+    assert "thresholds are heuristic" in flat
+    assert "v0.2 will replace them" in flat
+    assert "not empirically calibrated" in flat
+
+
+def test_methodology_section_includes_tokenizer_disclaimer_and_cjk_caveat(tmp_path: Path) -> None:
+    """Tokenizer disclaimer migrated INTO methodology, not buried in footer."""
+    _seed(tmp_path)
+    html = render_html(*_analyze(tmp_path))
+    flat = " ".join(html.split()).lower()
+    # Standard disclaimer appears under the Token counts heading
+    assert "cl100k_base" in html
+    # Plus the CJK / code error-magnitude expansion
+    assert "cjk" in flat or "code-heavy" in flat
+    assert "validate_tokenizer.py" in html
+
+
+def test_hero_disclaimer_links_to_methodology(tmp_path: Path) -> None:
+    """Per Persona C re-test: short disclaimer must stay adjacent to the hero
+    so the caveat travels with the headline number; full caveats live in
+    methodology and the hero links to it.
+    """
+    _seed(tmp_path)
+    html = render_html(*_analyze(tmp_path))
+    assert 'class="hero-disclaimer"' in html
+    assert 'href="#methodology"' in html
+
+
+def test_table_columns_have_descriptive_titles(tmp_path: Path) -> None:
+    """Vocabulary subtitles via title= attributes for browser tooltips."""
+    _seed(tmp_path)
+    html = render_html(*_analyze(tmp_path))
+    # Bloat column header gets a title attribute explaining the metric
+    assert 'title="Share of this file' in html
 
 
 def test_top_duplicate_groups_limits_and_orders(tmp_path: Path) -> None:
