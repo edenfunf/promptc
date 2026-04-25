@@ -122,10 +122,11 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
 }
 
 .page-header__brand {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   color: var(--fg-strong);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .page-header__path {
