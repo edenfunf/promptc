@@ -141,6 +141,87 @@ def test_find_duplicates_wasted_tokens_attribution(tmp_path: Path) -> None:
     assert "long.md" not in result.per_file_wasted
 
 
+def test_language_variant_cluster_excluded_from_bloat(tmp_path: Path) -> None:
+    """Persona C HN attack #4 fix: SDK READMEs duplicated per language binding
+    should NOT count as bloat — they're legitimate per-binding docs.
+    """
+    rule = (
+        "To create a managed agent, instantiate the client and call "
+        "agents.create with a config object containing your model and tools."
+    )
+    files = [
+        _make_parsed(tmp_path, "skills/claude-api/python/managed-agents/README.md", rule),
+        _make_parsed(tmp_path, "skills/claude-api/go/managed-agents/README.md", rule),
+        _make_parsed(tmp_path, "skills/claude-api/ruby/managed-agents/README.md", rule),
+        _make_parsed(tmp_path, "skills/claude-api/typescript/managed-agents/README.md", rule),
+    ]
+    result = find_duplicates(files)
+
+    # The cluster IS detected ...
+    assert result.total_groups == 1
+    group = result.groups[0]
+    assert group.size == 4
+    # ... but flagged as a language variant ...
+    assert group.is_language_variant is True
+    # ... and excluded from bloat-attributable totals.
+    assert result.total_wasted_tokens == 0
+    assert result.per_file_wasted == {}
+    # ... but its tokens are still surfaced separately.
+    assert result.language_variant_tokens > 0
+    assert len(result.language_variant_groups) == 1
+    assert len(result.bloat_groups) == 0
+
+
+def test_non_language_variant_cluster_still_counts_as_bloat(tmp_path: Path) -> None:
+    """Same content across non-language paths is still bloat."""
+    rule = (
+        "Always validate user input at the system boundary before processing. "
+        "Reject inputs that do not match the expected shape."
+    )
+    files = [
+        _make_parsed(tmp_path, "skills/security/SKILL.md", rule),
+        _make_parsed(tmp_path, "skills/api-design/SKILL.md", rule),
+        _make_parsed(tmp_path, "skills/code-review/SKILL.md", rule),
+    ]
+    result = find_duplicates(files)
+    assert result.total_groups == 1
+    group = result.groups[0]
+    assert group.is_language_variant is False
+    assert result.total_wasted_tokens > 0
+    assert result.language_variant_tokens == 0
+
+
+def test_language_variant_requires_all_paths_to_match_after_strip(tmp_path: Path) -> None:
+    """Mixed cluster (some language-tagged paths, some not) is NOT a variant."""
+    rule = (
+        "Always parameterize SQL queries to prevent injection attacks "
+        "across all database access paths in the codebase."
+    )
+    files = [
+        _make_parsed(tmp_path, "skills/sql/python/README.md", rule),
+        _make_parsed(tmp_path, "skills/sql/go/README.md", rule),
+        # This third one has a different non-language path — breaks the variant.
+        _make_parsed(tmp_path, "skills/security/SKILL.md", rule),
+    ]
+    result = find_duplicates(files)
+    assert result.total_groups == 1
+    assert result.groups[0].is_language_variant is False
+    assert result.total_wasted_tokens > 0
+
+
+def test_strip_language_segments_helper() -> None:
+    from promptc.dedup import _strip_language_segments
+
+    assert _strip_language_segments("skills/api/python/README.md") == "skills/api/README.md"
+    assert _strip_language_segments("skills/api/go/README.md") == "skills/api/README.md"
+    # Non-language segments are untouched
+    assert _strip_language_segments("skills/security/SKILL.md") == "skills/security/SKILL.md"
+    # Multiple language segments all stripped
+    assert _strip_language_segments("a/python/b/go/c.md") == "a/b/c.md"
+    # Case-insensitive
+    assert _strip_language_segments("skills/Python/README.md") == "skills/README.md"
+
+
 def test_find_duplicates_three_way_cluster(tmp_path: Path) -> None:
     rule = (
         "Always validate and sanitize user input at the system boundary before "

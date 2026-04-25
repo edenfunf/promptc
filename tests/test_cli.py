@@ -299,3 +299,28 @@ def test_json_format_does_not_write_html(tmp_path: Path) -> None:
     result = runner.invoke(main, ["analyze", str(tmp_path), "--format", "json"])
     assert result.exit_code == 0
     assert not Path("promptc-report.html").exists()
+
+
+def test_output_flag_writes_report_to_chosen_path(tmp_path: Path) -> None:
+    _seed_fixture(tmp_path)
+    target = tmp_path / "custom-name.html"
+    runner = CliRunner()
+    result = runner.invoke(
+        main, ["analyze", str(tmp_path), "--output", str(target)]
+    )
+    assert result.exit_code == 0
+    assert target.exists()
+    # Default filename should NOT also be written.
+    assert not Path("promptc-report.html").exists()
+
+
+def test_output_with_no_html_warns(tmp_path: Path) -> None:
+    _seed_fixture(tmp_path)
+    target = tmp_path / "should-not-exist.html"
+    runner = CliRunner()
+    result = runner.invoke(
+        main, ["analyze", str(tmp_path), "--no-html", "--output", str(target)]
+    )
+    assert result.exit_code == 0
+    assert not target.exists()
+    assert "--output has no effect" in result.output

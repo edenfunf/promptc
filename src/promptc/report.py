@@ -72,6 +72,7 @@ class DuplicateGroupCard:
     kind: str
     size: int
     wasted_tokens: int
+    is_language_variant: bool
     canonical_file: str
     chunks: list[DuplicateChunkCard]
 
@@ -122,6 +123,7 @@ def _top_duplicate_groups(
                 kind="exact" if group.is_exact else "near",
                 size=group.size,
                 wasted_tokens=group.wasted_tokens,
+                is_language_variant=group.is_language_variant,
                 canonical_file=canonical.file_path,
                 chunks=[
                     DuplicateChunkCard(

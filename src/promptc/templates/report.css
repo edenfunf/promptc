@@ -572,6 +572,17 @@ main {
   border: 1px solid rgba(251, 146, 60, 0.25);
 }
 
+.dup__variant {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(125, 211, 252, 0.1);
+  color: #7dd3fc;
+  border: 1px solid rgba(125, 211, 252, 0.3);
+}
+
 .dup__wasted {
   color: var(--fg);
   font-weight: 600;

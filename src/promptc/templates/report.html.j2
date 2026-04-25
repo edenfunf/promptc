@@ -228,8 +228,14 @@
       <header class="card__header">
         <h2>Duplicate rules ({{ dedup.total_groups }} group{{ '' if dedup.total_groups == 1 else 's' }})</h2>
         <p class="card__subtitle">Top {{ top_duplicates | length }} group(s) by
-        wasted tokens. The canonical chunk (longest version) is highlighted; the
-        other chunks are what promptc would consider redundant.</p>
+        duplicate-token count. The canonical chunk (longest version) is highlighted; the
+        other chunks are what promptc would consider redundant.
+        {% if dedup.language_variant_groups %}
+        Groups tagged <em>language variant</em> are per-binding SDK / language
+        documentation copies — surfaced for visibility, but excluded from the
+        Grade.
+        {% endif %}
+        </p>
       </header>
 
       <div class="dups">
@@ -239,7 +245,17 @@
             <span class="dup__rank">#{{ group.rank }}</span>
             <span class="dup__kind dup__kind--{{ group.kind }}"
                   title="{% if group.kind == 'exact' %}All chunks normalize to the same string after stripping markdown.{% else %}At least 0.85 Jaccard similarity on word sets after normalization.{% endif %}">{{ group.kind }}</span>
-            <span class="dup__wasted">{{ "{:,}".format(group.wasted_tokens) }} tokens wasted</span>
+            {% if group.is_language_variant %}
+            <span class="dup__variant"
+                  title="Cluster paths differ only in known language segments (e.g. /python/ vs /go/) — treated as legitimate per-binding documentation, not bloat. Excluded from the Grade.">language variant</span>
+            {% endif %}
+            <span class="dup__wasted">
+              {% if group.is_language_variant %}
+              {{ "{:,}".format(group.wasted_tokens) }} tokens of repeated content
+              {% else %}
+              {{ "{:,}".format(group.wasted_tokens) }} duplicate tokens
+              {% endif %}
+            </span>
             <span class="dup__count dim">{{ group.size }} chunks</span>
           </header>
           <div class="dup__chunks">

@@ -8,7 +8,12 @@ Algorithm (v0.1):
     5. Compare every chunk pair with Jaccard similarity.
     6. Cluster chunks whose similarity is >= threshold using Union-Find.
     7. In each cluster, the longest chunk (by original token count) is
-       the canonical; the rest count as waste.
+       the canonical; the rest count as duplicate (potentially redundant).
+    8. Cross-language detector (v0.1.x): clusters whose chunk paths
+       differ ONLY in well-known language segments (e.g. /python/ vs
+       /go/) are flagged as "language variants" — legitimate per-binding
+       documentation, not bloat. Their tokens are reported separately
+       and excluded from the bloat ratio that drives the Grade.
 
 This is O(N^2) in chunk count; fine for v0.1 scale (dozens of skills).
 MinHash LSH is the obvious upgrade path when N grows.
@@ -21,6 +26,49 @@ from dataclasses import dataclass, field
 from promptc.models import ParsedFile
 from promptc.normalizer import chunk_paragraphs, normalize
 from promptc.tokens import count_tokens
+
+# Path segments that mark per-language variants of the same content.
+# When a duplicate cluster's chunk paths differ ONLY in segments from
+# this set, the cluster is treated as legitimate cross-binding
+# documentation (e.g. an SDK README repeated per language) rather than
+# bloat — see Persona C beta point #4.
+LANGUAGE_PATH_SEGMENTS: frozenset[str] = frozenset({
+    "python", "py",
+    "go", "golang",
+    "ruby", "rb",
+    "java",
+    "typescript", "ts",
+    "javascript", "js", "node", "nodejs",
+    "rust", "rs",
+    "csharp", "cs", "dotnet", "net",
+    "php",
+    "swift",
+    "kotlin", "kt",
+    "scala",
+    "elixir",
+    "erlang",
+    "clojure", "clj",
+    "haskell", "hs",
+    "ocaml",
+    "dart",
+    "lua",
+    "r",
+    "julia", "jl",
+    "perl",
+    "curl", "http",
+    "shell", "bash",
+})
+
+
+def _strip_language_segments(path: str) -> str:
+    """Return `path` with all known language path segments removed.
+
+    Used by `DuplicateGroup.is_language_variant` — if every chunk's path
+    collapses to the same string after stripping, the cluster is per-language
+    SDK doc duplication, not bloat.
+    """
+    parts = path.split("/")
+    return "/".join(p for p in parts if p.lower() not in LANGUAGE_PATH_SEGMENTS)
 
 
 @dataclass(frozen=True)
@@ -58,6 +106,22 @@ class DuplicateGroup:
         """True when all chunks in the group normalize to the same string."""
         return len({c.normalized for c in self.chunks}) == 1
 
+    @property
+    def is_language_variant(self) -> bool:
+        """True when chunks come from paths differing ONLY in language segments.
+
+        This catches the SDK-README-per-binding pattern (Anthropic's own
+        ``skills/claude-api/{python,go,ruby,...}/managed-agents/README.md``)
+        which is intentional duplication, not bloat. Such groups are still
+        surfaced in the report but their tokens are not counted toward the
+        Grade-driving bloat ratio.
+        """
+        paths = {c.file_path for c in self.chunks}
+        if len(paths) < 2:
+            return False
+        stripped = {_strip_language_segments(p) for p in paths}
+        return len(stripped) == 1
+
 
 @dataclass
 class DedupResult:
@@ -65,8 +129,28 @@ class DedupResult:
     per_file_wasted: dict[str, int] = field(default_factory=dict)
 
     @property
+    def bloat_groups(self) -> list[DuplicateGroup]:
+        """Groups that count toward the Grade — i.e. NOT language variants."""
+        return [g for g in self.groups if not g.is_language_variant]
+
+    @property
+    def language_variant_groups(self) -> list[DuplicateGroup]:
+        """Cross-binding SDK / per-language doc duplication. Reported, not penalized."""
+        return [g for g in self.groups if g.is_language_variant]
+
+    @property
     def total_wasted_tokens(self) -> int:
-        return sum(g.wasted_tokens for g in self.groups)
+        """Tokens flagged as duplicate AND not legitimate language variants.
+
+        This is the number that drives the Grade. Language-variant cluster
+        tokens are tracked separately via :pyattr:`language_variant_tokens`.
+        """
+        return sum(g.wasted_tokens for g in self.bloat_groups)
+
+    @property
+    def language_variant_tokens(self) -> int:
+        """Tokens from clusters identified as legitimate per-language variants."""
+        return sum(g.wasted_tokens for g in self.language_variant_groups)
 
     @property
     def total_groups(self) -> int:
@@ -159,6 +243,10 @@ def find_duplicates(
 
     per_file: dict[str, int] = {}
     for group in groups:
+        # Skip language-variant clusters: their tokens are intentional
+        # per-binding documentation, not waste attributable to a file.
+        if group.is_language_variant:
+            continue
         canonical = group.canonical
         for chunk in group.chunks:
             if chunk is canonical:

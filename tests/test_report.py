@@ -255,7 +255,9 @@ def test_render_html_renders_duplicates_section(tmp_path: Path) -> None:
     _seed_with_duplicates(tmp_path)
     html = render_html(*_analyze(tmp_path))
     assert "Duplicate rules" in html
-    assert "tokens wasted" in html
+    # New (Day 13): non-variant clusters say "duplicate tokens" rather than
+    # the editorial "tokens wasted".
+    assert "duplicate tokens" in html
     # At least one chunk is tagged canonical
     assert "canonical" in html
     # All three source files appear in the duplicate comparison

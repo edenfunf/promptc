@@ -65,6 +65,13 @@ def main(ctx: click.Context) -> None:
     help="Output format.",
 )
 @click.option("--no-html", is_flag=True, help="Skip HTML report generation.")
+@click.option(
+    "--output",
+    "output_path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help="Where to write the HTML report. Defaults to ./promptc-report.html.",
+)
 @click.option("--open", "open_report", is_flag=True, help="Open the HTML report after analysis.")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed progress.")
 @click.option(
@@ -72,14 +79,20 @@ def main(ctx: click.Context) -> None:
     type=click.FloatRange(0.0, 1.0),
     default=0.85,
     show_default=True,
-    help="Jaccard similarity at or above which chunks are treated as duplicates.",
+    help=(
+        "Jaccard word-set similarity above which chunks are treated as "
+        "duplicates. 1.0 = only verbatim matches, 0.0 = anything matches."
+    ),
 )
 @click.option(
     "--min-words",
     type=click.IntRange(1, None),
     default=5,
     show_default=True,
-    help="Skip paragraph chunks with fewer unique words after normalization.",
+    help=(
+        "Skip paragraph chunks with fewer unique words after normalization. "
+        "Higher = fewer false positives from short list items / headings."
+    ),
 )
 @click.option(
     "--exclude",
@@ -92,6 +105,7 @@ def analyze(
     path: Path,
     output_format: str,
     no_html: bool,
+    output_path: Path | None,
     open_report: bool,
     verbose: bool,
     threshold: float,
@@ -134,9 +148,13 @@ def analyze(
             console.print(
                 "[yellow]--open has no effect when --no-html is set.[/yellow]"
             )
+        if output_path is not None:
+            console.print(
+                "[yellow]--output has no effect when --no-html is set.[/yellow]"
+            )
         return
 
-    report_path = Path.cwd() / DEFAULT_REPORT_FILENAME
+    report_path = output_path if output_path is not None else Path.cwd() / DEFAULT_REPORT_FILENAME
     html = render_html(scan_result, dedup_result, exposure_result, grade)
     try:
         written = write_report(report_path, html)
@@ -547,9 +565,20 @@ def _print_duplicate_groups(
     for idx, group in enumerate(dedup_result.groups[:limit], start=1):
         kind = "exact" if group.is_exact else "near"
         files = ", ".join(group.files_involved)
+        if group.is_language_variant:
+            variant_tag = " [cyan][language variant][/cyan]"
+            token_label = "tokens of repeated content"
+            token_color = "cyan"
+        else:
+            variant_tag = ""
+            token_label = "duplicate tokens"
+            token_color = "red"
+        tokens_styled = (
+            f"[{token_color}]{group.wasted_tokens:,}[/{token_color}]"
+        )
         console.print(
-            f"  [bold]{idx}.[/bold] [red]{group.wasted_tokens:,}[/red] tokens wasted "
-            f"({group.size} chunks, {kind}) in: {files}"
+            f"  [bold]{idx}.[/bold] {tokens_styled} {token_label} "
+            f"({group.size} chunks, {kind}){variant_tag} in: {files}"
         )
         preview = _preview(group.canonical.raw, 100)
         console.print(f"      [dim]canonical:[/dim] {preview}")
@@ -566,6 +595,14 @@ def _print_duplicate_groups(
     if remaining > 0:
         console.print(
             f"  [dim]... {remaining} more group(s) hidden. Use --verbose to expand.[/dim]"
+        )
+
+    if dedup_result.language_variant_groups:
+        n = len(dedup_result.language_variant_groups)
+        toks = dedup_result.language_variant_tokens
+        console.print(
+            f"  [dim]({n} language-variant cluster{'s' if n != 1 else ''}, "
+            f"{toks:,} tokens) — per-binding SDK docs, excluded from Grade.[/dim]"
         )
 
 
@@ -589,6 +626,7 @@ def _group_to_dict(group: DuplicateGroup) -> dict:
     return {
         "size": group.size,
         "kind": "exact" if group.is_exact else "near",
+        "is_language_variant": group.is_language_variant,
         "wasted_tokens": group.wasted_tokens,
         "canonical": {
             "file": group.canonical.file_path,
@@ -629,6 +667,8 @@ def _print_json(
             "total_groups": dedup_result.total_groups,
             "total_wasted_tokens": dedup_result.total_wasted_tokens,
             "per_file_wasted": dedup_result.per_file_wasted,
+            "language_variant_groups": len(dedup_result.language_variant_groups),
+            "language_variant_tokens": dedup_result.language_variant_tokens,
             "groups": [_group_to_dict(g) for g in dedup_result.groups],
         },
         "progressive_disclosure": {
