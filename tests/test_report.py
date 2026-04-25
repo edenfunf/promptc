@@ -131,6 +131,7 @@ def test_render_html_escapes_html_in_file_paths(tmp_path: Path) -> None:
             duplicate_ratio=0.0,
         )
     ]
+    from promptc.report import StatusBadge
     html = template.render(
         version="test",
         scan=scan_r,
@@ -138,11 +139,15 @@ def test_render_html_escapes_html_in_file_paths(tmp_path: Path) -> None:
         exposure=exposure_r,
         grade=grade,
         hero_state="clean",
+        status=StatusBadge(label="Healthy", headline="Healthy project", level="ok"),
+        hero_summary="No structural issues found.",
+        kpis=[],
         skill_count=0,
         skills_with_description=0,
-        body_total_tokens=0,
         top_files=top,
         top_duplicates=[],
+        top_risks=[],
+        insights=[],
         disclaimer="",
         exposure_narrative="",
         anthropic_docs_url="",
@@ -330,7 +335,11 @@ def test_render_html_insufficient_state_renders_distinct_hero(tmp_path: Path) ->
         encoding="utf-8",
     )
     html = render_html(*_analyze(tmp_path))
-    assert "NOT ENOUGH TO AUDIT YET" in html
+    # Per the IA rebuild: the Insufficient state surfaces "Not enough to grade"
+    # in the hero headline + an "Insufficient data" status pill, framed as a
+    # tool limitation (Persona D-Δ1 mitigation).
+    assert "Not enough to grade" in html
+    assert "Insufficient data" in html
     assert "hero--insufficient" in html
     # Per D-Δ1: insufficient copy must surface the Cursor v0.2 note.
     assert ".cursor/rules/" in html

@@ -8,400 +8,478 @@
 </head>
 <body>
 
-  <main>
+  <div class="page">
+
+    {# ============ HEADER (2 lines, no card) ============ #}
+    <header class="page-header">
+      <div class="page-header__row">
+        <span class="page-header__brand">promptc</span>
+        <span class="status status--{{ status.level }}">
+          <span class="status__dot"></span>{{ status.label }}
+        </span>
+      </div>
+      <div class="page-header__path" title="{{ scan.root }}">{{ scan.root }}</div>
+    </header>
 
     {% if scan.cursor_sibling_files %}
-    <div class="cursor-warning">
+    <div class="banner cursor-warning">
       Detected <code>.cursor/rules/</code>
       ({{ scan.cursor_sibling_files }} file{{ '' if scan.cursor_sibling_files == 1 else 's' }})
       — not yet scanned. Cursor support is tracked for v0.2.
     </div>
     {% endif %}
 
+    {# ============ HERO (huge grade letter + headline + 1 summary line) ============ #}
+
     {% if hero_state == "insufficient" %}
     <section class="hero hero--insufficient">
-      <div class="hero__eyebrow">NOT ENOUGH TO AUDIT YET</div>
-      <p class="hero__copy">
-        Your <code>.claude/</code> has {{ skill_count }}
-        skill file{{ '' if skill_count == 1 else 's' }}
-        ({{ "{:,}".format(scan.skill_body_tokens) }} body tokens).
+      <div class="hero__letter hero__letter--muted">—</div>
+      <div class="hero__headline">{{ status.headline }}</div>
+      <p class="hero__summary">{{ hero_summary }}</p>
+      {% if scan.total_files > 0 %}
+      <p class="hero__hint">
+        Need at least 3 SKILL.md files <strong>and</strong> 1,000 body tokens.
+        Scanning <code>.claude/</code> only — if your prompts live in
+        <code>.cursor/rules/</code>, support is tracked for v0.2.
       </p>
-      <p class="hero__copy hero__copy--dim">
-        promptc currently audits <code>.claude/</code> only — if your prompts
-        live in <code>.cursor/rules/</code>, support is tracked for v0.2.
-      </p>
-      <p class="hero__copy hero__copy--dim">
-        promptc needs at least 3 skills and 1,000 body tokens to find
-        patterns. Add more skills, or point promptc at a larger directory.
-      </p>
-    </section>
-
-    {% elif hero_state == "debt" %}
-    <section class="hero hero--{{ grade.letter | lower }}">
-      <div class="hero__grade-wrap">
-        <span class="hero__grade-label">Grade</span>
-        <span class="hero__grade-value">{{ grade.display }}</span>
-      </div>
-
-      <div class="hero__primary">
-        <div class="hero__number">{{ "{:,}".format(dedup.total_wasted_tokens) }}</div>
-        <div class="hero__number-label">
-          tokens of duplicate content across
-          {{ dedup.per_file_wasted | length }} file{{ '' if dedup.per_file_wasted | length == 1 else 's' }}
-        </div>
-      </div>
-
-      <div class="hero__secondary">
-        ({{ "{:.0%}".format(grade.bloat_ratio) }} of {{ "{:,}".format(body_total_tokens) }} body tokens)
-      </div>
-
-      {% if exposure.multiplier and exposure.multiplier > 1 %}
-      <div class="hero__amplifier">
-        Plus
-        <strong>{{ "{:.1f}×".format(exposure.multiplier) }}</strong>
-        worst-case context exposure on top.
-      </div>
-      {% endif %}
-
-      <div class="hero__pointer">Top offenders below ↓</div>
-    </section>
-
-    {% else %}
-    {# clean / moderate state — A or B/C, no multiplier in hero #}
-    <section class="hero hero--{{ grade.letter | lower }}">
-      <div class="hero__grade-wrap">
-        <span class="hero__grade-label">Grade</span>
-        <span class="hero__grade-value">{{ grade.display }}</span>
-      </div>
-
-      {% if grade.letter == "A" %}
-        {% if dedup.total_groups == 0 %}
-      <p class="hero__headline">Your <code>.claude/</code> is clean.</p>
-      <p class="hero__copy hero__copy--dim">
-        No duplicate content found.
-        {{ skills_with_description }} of {{ skill_count }}
-        skill{{ '' if skill_count == 1 else 's' }} have descriptions.
-      </p>
-        {% else %}
-      <p class="hero__headline">
-        Mostly clean — {{ dedup.total_groups }}
-        small duplicate group{{ '' if dedup.total_groups == 1 else 's' }} flagged below.
-      </p>
-      <p class="hero__copy hero__copy--dim">
-        {{ skills_with_description }} of {{ skill_count }}
-        skill{{ '' if skill_count == 1 else 's' }} have descriptions.
-      </p>
-        {% endif %}
       {% else %}
-      <p class="hero__headline">
-        {{ dedup.total_groups }} duplicate
-        group{{ '' if dedup.total_groups == 1 else 's' }} found
-        ({{ "{:,}".format(dedup.total_wasted_tokens) }} tokens,
-        {{ "{:.0%}".format(grade.bloat_ratio) }} of body).
-      </p>
-      <p class="hero__copy hero__copy--dim">
-        {{ skill_count }} skill file{{ '' if skill_count == 1 else 's' }} scanned.
+      <p class="hero__hint">
+        promptc looks for <code>SKILL.md</code> under
+        <code>.claude/skills/</code>, plus <code>commands/</code> and
+        <code>agents/</code> — if your prompts live in
+        <code>.cursor/rules/</code>, support is tracked for v0.2.
       </p>
       {% endif %}
+    </section>
+    {% else %}
+    <section class="hero hero--{{ grade.letter | lower }}">
+      <div class="hero__letter">{{ grade.display }}</div>
+      <div class="hero__headline">{{ status.headline }}</div>
+      <p class="hero__summary">{{ hero_summary }}</p>
+    </section>
 
-      <p class="hero__pointer">
-        See <em>Skill Context Exposure</em> below for worst-case load detail.
-      </p>
+    {# ============ 3-KPI STRIP (no cards, just columns) ============ #}
+    {% if kpis %}
+    <section class="kpis">
+      {% for k in kpis %}
+      <div class="kpi">
+        <div class="kpi__label">{{ k.label }}</div>
+        <div class="kpi__value">{{ k.value }}</div>
+        <div class="kpi__detail">{{ k.detail }}</div>
+      </div>
+      {% endfor %}
     </section>
     {% endif %}
 
-    {% if hero_state != "insufficient" %}
     <p class="hero-disclaimer">
       Token counts via OpenAI's <code>cl100k_base</code> as a Claude
-      tokenizer proxy. Grade thresholds are heuristics. See
-      <a href="#methodology">how this is graded</a> for full caveats.
+      tokenizer proxy. Grade thresholds are heuristics.
+      <a href="#methodology">See how this is graded</a>.
     </p>
-    {% endif %}
+
+    {# ============ MAIN: 70/30 — bare tables on left, alert panel on right ============ #}
+
+    <div class="main">
+
+      <div class="main__left">
+        {% if top_duplicates %}
+        <section class="block">
+          <header class="block__header">
+            <h2 class="block__title">Top duplicates</h2>
+            <a class="block__link" href="#dups-detail">All {{ dedup.total_groups }} →</a>
+          </header>
+          <table class="bare-table">
+            <thead>
+              <tr>
+                <th class="num">#</th>
+                <th>Canonical file</th>
+                <th class="num">Tokens</th>
+                <th class="num">Files</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for g in top_duplicates[:5] %}
+              <tr>
+                <td class="num dim">{{ g.rank }}</td>
+                <td><code class="path">{{ g.canonical_file }}</code></td>
+                <td class="num">{{ "{:,}".format(g.wasted_tokens) }}</td>
+                <td class="num dim">{{ g.size }}</td>
+                <td>
+                  {% if g.is_language_variant %}
+                  <span class="tag tag--neutral">variant</span>
+                  {% elif g.kind == "exact" %}
+                  <span class="tag tag--critical">exact</span>
+                  {% else %}
+                  <span class="tag tag--warn">near</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+        {% endif %}
+
+        <section class="block">
+          <header class="block__header">
+            <h2 class="block__title">Top {{ top_files | length }} largest files</h2>
+            <span class="block__hint">By total tokens</span>
+          </header>
+          {% if top_files %}
+          <table class="bare-table">
+            <thead>
+              <tr>
+                <th class="num">#</th>
+                <th>File</th>
+                <th>Role</th>
+                <th class="num" title="Total tokens including frontmatter and body">Tokens</th>
+                <th class="num bloat-col" title="Share of this file's body that promptc flagged as duplicated with content elsewhere">Bloat</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in top_files %}
+              <tr>
+                <td class="num dim">{{ f.rank }}</td>
+                <td><code class="path">{{ f.path }}</code></td>
+                <td><span class="role role--{{ f.role }}">{{ f.role }}</span></td>
+                <td class="num">{{ "{:,}".format(f.total_tokens) }}</td>
+                <td class="num bloat-col">
+                  {% if f.duplicate_tokens %}
+                  <div class="bloat">
+                    <div class="bloat__bar">
+                      <div class="bloat__fill"
+                           style="width: {{ (f.duplicate_ratio * 100) | round(0, 'floor') | int }}%;"></div>
+                    </div>
+                    <span class="bloat__pct">{{ "{:.0f}%".format(f.duplicate_ratio * 100) }}</span>
+                  </div>
+                  {% else %}
+                  <span class="dim">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="empty">No files scanned.</p>
+          {% endif %}
+        </section>
+      </div>
+
+      <aside class="main__right">
+        {% if top_risks %}
+        <section class="block">
+          <h2 class="block__title">Risks</h2>
+          <ul class="alerts">
+            {% for r in top_risks %}
+            <li class="alert alert--{{ r.severity }}">
+              <div class="alert__label">{{ r.label }}</div>
+              <code class="alert__target">{{ r.target }}</code>
+              <div class="alert__detail">{{ r.detail }}</div>
+            </li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+
+        {% if insights %}
+        <section class="block">
+          <h2 class="block__title">Insights</h2>
+          <ul class="insights">
+            {% for i in insights %}
+            <li class="insight">
+              <div class="insight__finding">
+                <span class="insight__dot insight__dot--{{ i.level }}"></span>
+                {{ i.finding }}
+              </div>
+              <div class="insight__action">→ {{ i.action }}</div>
+            </li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+      </aside>
+    </div>
+    {% endif %} {# end of non-insufficient main #}
+
+    {# ============ ACCORDION DETAILS ============ #}
 
     {% if exposure.skill_count and exposure.multiplier and not scan.is_insufficient %}
-    <section class="card exposure">
-      <header class="card__header">
-        <h2>Skill Context Exposure</h2>
-        <p class="card__subtitle">Worst-case context cost if a SKILL.md body
-        ends up in context instead of just its description.</p>
-      </header>
+    <details class="accordion" id="exposure-detail">
+      <summary class="accordion__summary">
+        <span class="accordion__chev" aria-hidden="true">›</span>
+        <span class="accordion__title">Skill Context Exposure</span>
+        <span class="accordion__hint">
+          {{ "{:,}".format(exposure.total_promised) }} →
+          {{ "{:,}".format(exposure.total_worst_case) }} tok
+          · {{ "{:.1f}×".format(exposure.multiplier) }}
+        </span>
+      </summary>
+      <div class="accordion__body card exposure">
+        <p class="block__hint" style="margin-top:0">
+          Worst-case context cost if a SKILL.md body ends up in context
+          instead of just its description.
+        </p>
 
-      <div class="exposure__grid">
-        <div class="exposure__cell">
-          <div class="exposure__label">Promised load</div>
-          <div class="exposure__value">{{ "{:,}".format(exposure.total_promised) }}</div>
-          <div class="exposure__hint">description tokens</div>
-        </div>
-        <div class="exposure__cell exposure__cell--worst">
-          <div class="exposure__label">Worst-case load</div>
-          <div class="exposure__value">{{ "{:,}".format(exposure.total_worst_case) }}</div>
-          <div class="exposure__hint">SKILL.md body tokens</div>
-        </div>
-        <div class="exposure__cell exposure__cell--mult">
-          <div class="exposure__label">Exposure multiplier</div>
-          <div class="exposure__value exposure__value--mult">{{ "{:.1f}×".format(exposure.multiplier) }}</div>
-          <div class="exposure__hint">body ÷ description</div>
-        </div>
-      </div>
-
-      {% set max_load = exposure.total_worst_case if exposure.total_worst_case else 1 %}
-      <div class="exposure__bars">
-        <div class="exposure__bar-row">
-          <span class="exposure__bar-label">Promised</span>
-          <div class="exposure__bar-track">
-            <div class="exposure__bar-fill exposure__bar-fill--promised"
-                 style="width: {{ (exposure.total_promised / max_load * 100) | round(2) }}%;"></div>
+        <div class="exposure__cells">
+          <div class="exposure__cell">
+            <div class="exposure__cell-label">Promised load</div>
+            <div class="exposure__cell-value">{{ "{:,}".format(exposure.total_promised) }}</div>
+            <div class="exposure__cell-hint">description tokens</div>
           </div>
-          <span class="exposure__bar-num">{{ "{:,}".format(exposure.total_promised) }}</span>
-        </div>
-        <div class="exposure__bar-row">
-          <span class="exposure__bar-label">Worst case</span>
-          <div class="exposure__bar-track">
-            <div class="exposure__bar-fill exposure__bar-fill--worst"
-                 style="width: 100%;"></div>
+          <div class="exposure__cell exposure__cell--warn">
+            <div class="exposure__cell-label">Worst-case load</div>
+            <div class="exposure__cell-value">{{ "{:,}".format(exposure.total_worst_case) }}</div>
+            <div class="exposure__cell-hint">SKILL.md body tokens</div>
           </div>
-          <span class="exposure__bar-num">{{ "{:,}".format(exposure.total_worst_case) }}</span>
+          <div class="exposure__cell exposure__cell--critical">
+            <div class="exposure__cell-label">Exposure multiplier</div>
+            <div class="exposure__cell-value">{{ "{:.1f}×".format(exposure.multiplier) }}</div>
+            <div class="exposure__cell-hint">body ÷ description</div>
+          </div>
         </div>
-      </div>
 
-      {% if exposure.files %}
-      <h3 class="exposure__subhead">Top skills by worst-case load</h3>
-      <table class="files exposure__top">
-        <thead>
-          <tr>
-            <th class="col-path">Skill</th>
-            <th class="col-num">Worst-case</th>
-            <th class="col-num">Promised</th>
-            <th class="col-num">Mult.</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for f in exposure.files[:5] %}
-          <tr>
-            <td class="col-path"><code>{{ f.file_path }}</code></td>
-            <td class="col-num">{{ "{:,}".format(f.worst_case_tokens) }}</td>
-            <td class="col-num">{{ "{:,}".format(f.promised_tokens) }}</td>
-            <td class="col-num">
-              {% if f.multiplier %}
+        {% set max_load = exposure.total_worst_case if exposure.total_worst_case else 1 %}
+        <div class="exposure__bars">
+          <div class="exposure__bar-row">
+            <span class="exposure__bar-label">Promised</span>
+            <div class="exposure__bar-track">
+              <div class="exposure__bar-fill exposure__bar-fill--ok"
+                   style="width: {{ (exposure.total_promised / max_load * 100) | round(2) }}%;"></div>
+            </div>
+            <span class="exposure__bar-num">{{ "{:,}".format(exposure.total_promised) }}</span>
+          </div>
+          <div class="exposure__bar-row">
+            <span class="exposure__bar-label">Worst case</span>
+            <div class="exposure__bar-track">
+              <div class="exposure__bar-fill exposure__bar-fill--bad"
+                   style="width: 100%;"></div>
+            </div>
+            <span class="exposure__bar-num">{{ "{:,}".format(exposure.total_worst_case) }}</span>
+          </div>
+        </div>
+
+        {% if exposure.files %}
+        <h3 class="section-subhead">Top skills by worst-case load</h3>
+        <table class="bare-table">
+          <thead>
+            <tr>
+              <th>Skill</th>
+              <th class="num">Worst-case</th>
+              <th class="num">Promised</th>
+              <th class="num">Mult.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in exposure.files[:5] %}
+            <tr>
+              <td><code class="path">{{ f.file_path }}</code></td>
+              <td class="num">{{ "{:,}".format(f.worst_case_tokens) }}</td>
+              <td class="num">{{ "{:,}".format(f.promised_tokens) }}</td>
+              <td class="num">
+                {% if f.multiplier %}
                 <strong>{{ "{:.1f}×".format(f.multiplier) }}</strong>
-              {% else %}
+                {% else %}
                 <span class="dim">n/a</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
 
-      {% if exposure.skills_without_description %}
-      <p class="callout">
-        <strong>{{ exposure.skills_without_description | length }} skill(s) have no description field.</strong>
-        Their promised load is 0, so there is no startup metadata to match
-        against; the full body is the only way to know what they do.
-      </p>
-      {% endif %}
+        {% if exposure.skills_without_description %}
+        <p class="callout callout--warn">
+          <strong>{{ exposure.skills_without_description | length }} skill(s) have no description field.</strong>
+          Their promised load is 0, so there is no startup metadata to match
+          against; the full body is the only way to know what they do.
+        </p>
+        {% endif %}
 
-      <div class="exposure__sources">
-        <p>Claude Code's Skills documentation describes the loading
-        model: skill descriptions load into context at session start so
-        Claude knows what's available, while the full SKILL.md body
-        loads only when the skill is invoked.</p>
-        <ul class="exposure__links">
-          <li>Docs:
-            <a href="{{ anthropic_docs_url }}" rel="noopener">{{ anthropic_docs_url }}</a>
-          </li>
-          <li>Community report of body loading anyway:
-            <a href="{{ community_issue_url }}" rel="noopener">{{ community_issue_url }}</a>
-          </li>
-        </ul>
-        <p class="exposure__disclaimer">The multiplier above is the ceiling of
-        your exposure if the full body ends up in context. This tool makes
-        no claim about whether that happens in your setup; it measures
-        the upper bound.</p>
+        <div class="sources">
+          <p>Claude Code's Skills documentation describes the loading
+          model: skill descriptions load into context at session start so
+          Claude knows what's available, while the full SKILL.md body
+          loads only when the skill is invoked.</p>
+          <ul class="sources__links">
+            <li>Docs: <a href="{{ anthropic_docs_url }}" rel="noopener">{{ anthropic_docs_url }}</a></li>
+            <li>Community report of body loading anyway:
+              <a href="{{ community_issue_url }}" rel="noopener">{{ community_issue_url }}</a>
+            </li>
+          </ul>
+          <p class="sources__disclaimer">The multiplier above is the ceiling
+          of your exposure if the full body ends up in context. This tool
+          makes no claim about whether that happens in your setup; it
+          measures the upper bound.</p>
+        </div>
       </div>
-    </section>
+    </details>
     {% endif %}
 
     {% if top_duplicates %}
-    <section class="card">
-      <header class="card__header">
-        <h2>Duplicate rules ({{ dedup.total_groups }} group{{ '' if dedup.total_groups == 1 else 's' }})</h2>
-        <p class="card__subtitle">Top {{ top_duplicates | length }} group(s) by
-        duplicate-token count. The canonical chunk (longest version) is highlighted; the
-        other chunks are what promptc would consider redundant.
-        {% if dedup.language_variant_groups %}
-        Groups tagged <em>language variant</em> are per-binding SDK / language
-        documentation copies — surfaced for visibility, but excluded from the
-        Grade.
-        {% endif %}
+    <details class="accordion" id="dups-detail">
+      <summary class="accordion__summary">
+        <span class="accordion__chev" aria-hidden="true">›</span>
+        <span class="accordion__title">Duplicate rules — {{ dedup.total_groups }} group{{ '' if dedup.total_groups == 1 else 's' }}</span>
+        <span class="accordion__hint">
+          Top {{ top_duplicates | length }} shown
+          · {{ "{:,}".format(dedup.total_wasted_tokens) }} duplicate tokens
+          {% if dedup.language_variant_groups %}
+          · {{ dedup.language_variant_groups | length }} excluded as variants
+          {% endif %}
+        </span>
+      </summary>
+      <div class="accordion__body card">
+        <p class="block__hint" style="margin-top:0">
+          The canonical chunk (longest version) is highlighted; the other
+          chunks are what promptc would consider redundant.
+          {% if dedup.language_variant_groups %}
+          Groups tagged <em>language variant</em> are per-binding SDK /
+          language documentation copies — surfaced for visibility, but
+          excluded from the Grade.
+          {% endif %}
         </p>
-      </header>
 
-      <div class="dups">
-        {% for group in top_duplicates %}
-        <article class="dup">
-          <header class="dup__header">
-            <span class="dup__rank">#{{ group.rank }}</span>
-            <span class="dup__kind dup__kind--{{ group.kind }}"
-                  title="{% if group.kind == 'exact' %}All chunks normalize to the same string after stripping markdown.{% else %}At least 0.85 Jaccard similarity on word sets after normalization.{% endif %}">{{ group.kind }}</span>
-            {% if group.is_language_variant %}
-            <span class="dup__variant"
-                  title="Cluster paths differ only in known language segments (e.g. /python/ vs /go/) — treated as legitimate per-binding documentation, not bloat. Excluded from the Grade.">language variant</span>
-            {% endif %}
-            <span class="dup__wasted">
+        <div class="dups">
+          {% for group in top_duplicates %}
+          <article class="dup">
+            <header class="dup__header">
+              <span class="dup__rank">#{{ group.rank }}</span>
+              <span class="dup__kind dup__kind--{{ group.kind }}"
+                    title="{% if group.kind == 'exact' %}All chunks normalize to the same string after stripping markdown.{% else %}At least 0.85 Jaccard similarity on word sets after normalization.{% endif %}">{{ group.kind }}</span>
               {% if group.is_language_variant %}
-              {{ "{:,}".format(group.wasted_tokens) }} tokens of repeated content
-              {% else %}
-              {{ "{:,}".format(group.wasted_tokens) }} duplicate tokens
+              <span class="dup__variant"
+                    title="Cluster paths differ only in known language segments (e.g. /python/ vs /go/) — treated as legitimate per-binding documentation, not bloat. Excluded from the Grade.">language variant</span>
               {% endif %}
-            </span>
-            <span class="dup__count dim">{{ group.size }} chunks</span>
-          </header>
-          <div class="dup__chunks">
-            {% for chunk in group.chunks %}
-            <div class="dup__chunk{% if chunk.is_canonical %} dup__chunk--canonical{% endif %}">
-              <div class="dup__chunk-meta">
-                <code class="dup__chunk-path">{{ chunk.file_path }}</code>
-                <span class="dim">chunk {{ chunk.chunk_index }} · {{ "{:,}".format(chunk.tokens) }} tokens</span>
-                {% if chunk.is_canonical %}
-                <span class="dup__badge">canonical</span>
+              <span class="dup__wasted">
+                {% if group.is_language_variant %}
+                {{ "{:,}".format(group.wasted_tokens) }} tokens of repeated content
+                {% else %}
+                {{ "{:,}".format(group.wasted_tokens) }} duplicate tokens
                 {% endif %}
+              </span>
+              <span class="dup__count dim">{{ group.size }} chunks</span>
+            </header>
+            <div class="dup__chunks">
+              {% for chunk in group.chunks %}
+              <div class="dup__chunk{% if chunk.is_canonical %} dup__chunk--canonical{% endif %}">
+                <div class="dup__chunk-meta">
+                  <code class="dup__chunk-path">{{ chunk.file_path }}</code>
+                  <span class="dim">chunk {{ chunk.chunk_index }} · {{ "{:,}".format(chunk.tokens) }} tokens</span>
+                  {% if chunk.is_canonical %}
+                  <span class="dup__badge">canonical</span>
+                  {% endif %}
+                </div>
+                <p class="dup__chunk-preview">{{ chunk.preview }}</p>
               </div>
-              <p class="dup__chunk-preview">{{ chunk.preview }}</p>
+              {% endfor %}
             </div>
-            {% endfor %}
-          </div>
-        </article>
-        {% endfor %}
+          </article>
+          {% endfor %}
+        </div>
       </div>
-    </section>
+    </details>
     {% endif %}
 
-    <section class="card">
-      <header class="card__header">
-        <h2>Top {{ top_files | length }} largest files</h2>
-        <p class="card__subtitle">Ranked by total token cost. "Bloat" is the
-        share of this file's body that promptc flagged as duplicated with
-        another file.</p>
-      </header>
+    <details class="accordion" id="methodology">
+      <summary class="accordion__summary">
+        <span class="accordion__chev" aria-hidden="true">›</span>
+        <span class="accordion__title">How this is graded</span>
+        <span class="accordion__hint">Formulas · thresholds · caveats</span>
+      </summary>
+      <div class="accordion__body card methodology">
+        <p class="block__hint" style="margin-top:0">
+          promptc's grades and metrics are heuristics, not benchmarks. This
+          section explains exactly how each number above was computed, so
+          you can reproduce or contest any of them.
+        </p>
 
-      {% if top_files %}
-      <table class="files">
-        <thead>
-          <tr>
-            <th class="col-rank">#</th>
-            <th class="col-path">File</th>
-            <th class="col-role">Role</th>
-            <th class="col-num" title="Total tokens including frontmatter and body">Tokens</th>
-            <th class="col-bloat" title="Share of this file's body that promptc flagged as duplicated with content elsewhere">Bloat</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for f in top_files %}
-          <tr>
-            <td class="col-rank">{{ f.rank }}</td>
-            <td class="col-path"><code>{{ f.path }}</code></td>
-            <td class="col-role"><span class="role role--{{ f.role }}">{{ f.role }}</span></td>
-            <td class="col-num">{{ "{:,}".format(f.total_tokens) }}</td>
-            <td class="col-bloat">
-              {% if f.duplicate_tokens %}
-                <div class="bloat">
-                  <div class="bloat__bar">
-                    <div class="bloat__fill"
-                         style="width: {{ (f.duplicate_ratio * 100) | round(0, 'floor') | int }}%;"></div>
-                  </div>
-                  <span class="bloat__pct">{{ "{:.0f}%".format(f.duplicate_ratio * 100) }}</span>
-                </div>
-              {% else %}
-                <span class="dim">—</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <p class="empty">No files scanned.</p>
-      {% endif %}
-    </section>
+        <h3 class="methodology__heading">Efficiency Grade</h3>
+        <p>The grade reflects the <strong>duplicate-content ratio</strong>:
+        the share of total scanned tokens that promptc flagged as a
+        near-duplicate of content elsewhere in the scan. Includes duplicates
+        from supporting docs (per-binding READMEs, references), not just
+        SKILL.md bodies.</p>
+        <pre class="methodology__formula">bloat_ratio = duplicate_tokens / total_tokens</pre>
+        <table class="methodology__rubric">
+          <thead>
+            <tr><th>Grade</th><th>Bloat ratio</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="grade-pill grade-pill--a">A</span></td><td>&lt; 5%</td></tr>
+            <tr><td><span class="grade-pill grade-pill--b">B</span></td><td>5% &mdash; 15%</td></tr>
+            <tr><td><span class="grade-pill grade-pill--c">C</span></td><td>15% &mdash; 25%</td></tr>
+            <tr><td><span class="grade-pill grade-pill--d">D</span></td><td>25% &mdash; 40%</td></tr>
+            <tr><td><span class="grade-pill grade-pill--f">F</span></td><td>&ge; 40%</td></tr>
+          </tbody>
+        </table>
+        <p>Each non-F letter splits into <code>+</code> (lower bloat half of the
+        bracket) and <code>-</code> (upper half). F has no modifier.</p>
+        <p class="methodology__caveat"><strong>These thresholds are heuristic.</strong>
+        They were chosen by intuition before any reference distribution
+        existed. v0.2 will replace them with empirical breakpoints derived from
+        a corpus of real <code>.claude/</code> directories. Contributions
+        welcome — see the project's roadmap.</p>
 
-    <section class="card methodology" id="methodology">
-      <header class="card__header">
-        <h2>How this is graded</h2>
-        <p class="card__subtitle">promptc's grades and metrics are heuristics,
-        not benchmarks. This section explains exactly how each number above was
-        computed, so you can reproduce or contest any of them.</p>
-      </header>
+        <h3 class="methodology__heading">Skill Context Exposure</h3>
+        <p>The exposure multiplier measures the ceiling cost if Claude loads
+        a skill's full body instead of just its description at session start:</p>
+        <pre class="methodology__formula">multiplier = SKILL.md body tokens / description tokens</pre>
+        <p>Both numerator and denominator are <em>content tokens</em> —
+        frontmatter overhead (delimiters, name, other fields) is excluded from
+        both sides, so the ratio is symmetric.</p>
+        <p>The behavior we're measuring is described in
+        <a href="{{ anthropic_docs_url }}" rel="noopener">Claude Code's Skills
+        documentation</a>: descriptions load at startup, full bodies on demand.
+        Community reports describe setups where the full body ends up in
+        context anyway — see
+        <a href="{{ community_issue_url }}" rel="noopener">claude-code#14882</a>.
+        promptc makes no claim about whether that happens in your setup; it
+        measures the upper bound.</p>
 
-      <h3 class="methodology__heading">Efficiency Grade</h3>
-      <p>The grade reflects the <strong>duplicate-content ratio</strong>:
-      the share of skill-body tokens that promptc flagged as a near-duplicate
-      of content elsewhere in the scan.</p>
-      <pre class="methodology__formula">bloat_ratio = duplicate_tokens / total_tokens</pre>
-      <table class="methodology__rubric">
-        <thead>
-          <tr><th>Grade</th><th>Bloat ratio</th></tr>
-        </thead>
-        <tbody>
-          <tr><td><span class="grade-pill grade-pill--a">A</span></td><td>&lt; 5%</td></tr>
-          <tr><td><span class="grade-pill grade-pill--b">B</span></td><td>5% &mdash; 15%</td></tr>
-          <tr><td><span class="grade-pill grade-pill--c">C</span></td><td>15% &mdash; 25%</td></tr>
-          <tr><td><span class="grade-pill grade-pill--d">D</span></td><td>25% &mdash; 40%</td></tr>
-          <tr><td><span class="grade-pill grade-pill--f">F</span></td><td>&ge; 40%</td></tr>
-        </tbody>
-      </table>
-      <p>Each non-F letter splits into <code>+</code> (lower bloat half of the
-      bracket) and <code>-</code> (upper half). F has no modifier.</p>
-      <p class="methodology__caveat"><strong>These thresholds are heuristic.</strong>
-      They were chosen by intuition before any reference distribution
-      existed. v0.2 will replace them with empirical breakpoints derived from
-      a corpus of real <code>.claude/</code> directories. Contributions
-      welcome — see the project's roadmap.</p>
+        <h3 class="methodology__heading">Insufficient data</h3>
+        <p>The "Not enough to audit yet" hero appears when:</p>
+        <ul class="methodology__list">
+          <li>fewer than 3 SKILL.md files <strong>OR</strong></li>
+          <li>fewer than 1,000 aggregate body tokens across skills</li>
+        </ul>
+        <p class="methodology__caveat">These thresholds are heuristic too.
+        They exist so a single tiny skill, or a few placeholder skills, doesn't
+        get a misleading A+. They are not empirically calibrated.</p>
 
-      <h3 class="methodology__heading">Skill Context Exposure</h3>
-      <p>The exposure multiplier measures the ceiling cost if Claude loads
-      a skill's full body instead of just its description at session start:</p>
-      <pre class="methodology__formula">multiplier = SKILL.md body tokens / description tokens</pre>
-      <p>Both numerator and denominator are <em>content tokens</em> —
-      frontmatter overhead (delimiters, name, other fields) is excluded from
-      both sides, so the ratio is symmetric.</p>
-      <p>The behavior we're measuring is described in
-      <a href="{{ anthropic_docs_url }}" rel="noopener">Claude Code's Skills
-      documentation</a>: descriptions load at startup, full bodies on demand.
-      Community reports describe setups where the full body ends up in
-      context anyway — see
-      <a href="{{ community_issue_url }}" rel="noopener">claude-code#14882</a>.
-      promptc makes no claim about whether that happens in your setup; it
-      measures the upper bound.</p>
+        <h3 class="methodology__heading">Token counts</h3>
+        <p>{{ disclaimer }}</p>
+        <p class="methodology__caveat">The ~18% bias is measured on
+        English mixed prose/code (the anthropics/skills sample). Error
+        magnitude on CJK content is unmeasured and may diverge further.
+        Run <code>scripts/validate_tokenizer.py</code> against your own
+        corpus (Anthropic native or OpenRouter) to calibrate for your
+        content type.</p>
+      </div>
+    </details>
 
-      <h3 class="methodology__heading">Insufficient data</h3>
-      <p>The "Not enough to audit yet" hero appears when:</p>
-      <ul class="methodology__list">
-        <li>fewer than 3 SKILL.md files <strong>OR</strong></li>
-        <li>fewer than 1,000 aggregate body tokens across skills</li>
-      </ul>
-      <p class="methodology__caveat">These thresholds are heuristic too.
-      They exist so a single tiny skill, or a few placeholder skills, doesn't
-      get a misleading A+. They are not empirically calibrated.</p>
+    <footer class="footer">
+      <div>Generated by <strong>promptc</strong> v{{ version }}</div>
+      <div class="footer__path">{{ scan.root }}</div>
+    </footer>
 
-      <h3 class="methodology__heading">Token counts</h3>
-      <p>{{ disclaimer }}</p>
-      <p class="methodology__caveat">Error magnitude on CJK and code-heavy
-      content is unmeasured but expected to be larger than on prose. Run
-      <code>scripts/validate_tokenizer.py</code> with an Anthropic API key
-      to compare cl100k_base against Claude's <code>count_tokens</code>
-      endpoint on your own corpus.</p>
-    </section>
+  </div>
 
-  </main>
-
-  <footer class="footer">
-    <div class="footer__row">
-      <span>Generated by <strong>promptc</strong> v{{ version }}</span>
-      <span class="footer__path">{{ scan.root }}</span>
-    </div>
-  </footer>
+  <script>
+    // Auto-open <details> when the URL hash points to it (zero-dep).
+    function openTargetDetails() {
+      try {
+        var hash = location.hash;
+        if (!hash || hash.length < 2) return;
+        var el = document.querySelector(hash);
+        if (el && el.tagName === 'DETAILS') el.open = true;
+      } catch (e) { /* invalid selector — ignore */ }
+    }
+    window.addEventListener('hashchange', openTargetDetails);
+    window.addEventListener('DOMContentLoaded', openTargetDetails);
+  </script>
 
 </body>
 </html>

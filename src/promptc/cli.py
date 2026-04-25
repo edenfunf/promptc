@@ -357,7 +357,7 @@ def _print_hero_clean(
             f"{dedup_result.total_groups} duplicate "
             f"group{'s' if dedup_result.total_groups != 1 else ''} found "
             f"({dedup_result.total_wasted_tokens:,} tokens, "
-            f"{grade.bloat_ratio:.0%} of body).",
+            f"{grade.bloat_ratio:.0%} of total).",
             justify="center",
         )
         subtitle_text = (
@@ -394,7 +394,6 @@ def _print_hero_debt(
     grade: Grade,
 ) -> None:
     """D / F states. Multiplier IN hero, framed as amplifying the verdict."""
-    body_total = sum(f.body_tokens for f in scan_result.files)
     wasted = dedup_result.total_wasted_tokens
     files_affected = len(dedup_result.per_file_wasted)
 
@@ -409,7 +408,7 @@ def _print_hero_debt(
     )
 
     ratio_line = Text(
-        f"({grade.bloat_ratio:.0%} of {body_total:,} body tokens)",
+        f"({grade.bloat_ratio:.0%} of {scan_result.total_tokens:,} scanned tokens)",
         style="dim",
         justify="center",
     )

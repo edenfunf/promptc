@@ -175,24 +175,29 @@ variants too.
 
 ---
 
-### 10. Auto-run `validate_tokenizer.py` and embed the error band in the report [feature]
+### 10. Broaden tokenizer calibration to CJK and pure-code corpora [research]
 
-**Scope.** When the user has `ANTHROPIC_API_KEY` set in their
-environment, optionally run `scripts/validate_tokenizer.py` against a
-small sample of the scanned files and embed the measured error band
-into the methodology section ("typically within ±X% on this corpus").
-Off by default; opt-in via `--measure-tokenizer` or
-`PROMPTC_MEASURE_TOKENIZER=1`.
+**Scope.** v0.1 ships a measured ~18% systematic underestimate from the
+anthropics/skills corpus (n=20, English mixed prose+code). That bound
+is the baseline shipped in `TOKENIZER_DISCLAIMER`. We need to extend
+the calibration to:
 
-**Acceptance.** With the env var set and an API key, the methodology
-section's tokenizer paragraph reads "On the files in this scan,
-cl100k_base produced counts within ±X% of Claude's count_tokens
-endpoint." Without the env var, the existing generic disclaimer
-remains unchanged.
+  - CJK-heavy `.claude/` (Chinese / Japanese / Korean prose + code mix)
+  - Pure-code `.md` (e.g. README files that are 90%+ fenced code)
+  - Long-form prose with no code (e.g. design docs)
 
-**Files.** `src/promptc/tokens.py`, `scripts/validate_tokenizer.py`
-(refactor to expose a callable), `src/promptc/report.py`,
-`tests/test_tokens.py`.
+Run `scripts/validate_tokenizer.py` against representative samples of
+each category, capture per-category bias / stdev, and update
+`TOKENIZER_DISCLAIMER` + the methodology section in the HTML report
+with the broader picture (e.g. a small table of bias-by-content-type).
+
+**Acceptance.** `TOKENIZER_DISCLAIMER` cites at least 3 distinct
+content categories with their measured bias bands, replacing the
+single "anthropics/skills only" baseline.
+
+**Files.** `src/promptc/tokens.py`, `src/promptc/templates/report.html.j2`
+(methodology Token counts subsection), `scripts/validate_tokenizer.py`
+(no changes expected, just re-run with different corpora).
 
 ---
 

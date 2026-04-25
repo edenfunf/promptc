@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/banner.png" alt="promptc — Measure context debt in your Claude Code setup" width="100%">
+</p>
+
 # promptc
 
 > Measure worst-case skill-context exposure in your Claude Code setup.
@@ -54,7 +58,7 @@ $ promptc analyze examples/bloated-demo
 |                                D+                                      |
 |                                                                        |
 |             461 tokens of duplicate content across 5 files             |
-|                       (32% of 1,350 body tokens)                       |
+|                     (32% of 1,446 scanned tokens)                      |
 |                                                                        |
 |             Plus 23.7x worst-case context exposure on top.             |
 |                                                                        |
@@ -101,9 +105,10 @@ explains every formula.
   `.claude/skills/<name>/SKILL.md`. Only this file gets the `skill`
   role; supporting files (templates, references, examples) under the
   same directory are scanned as `other`.
-- **Duplicate-content ratio** (a.k.a. *bloat ratio*) — share of skill-body
-  tokens that promptc flagged as a near-duplicate of content elsewhere.
-  Drives the Grade.
+- **Duplicate-content ratio** (a.k.a. *bloat ratio*) — share of total
+  scanned tokens that promptc flagged as a near-duplicate of content
+  elsewhere. Includes duplicates from supporting docs, not just SKILL.md
+  bodies. Drives the Grade.
 - **Promised load** — tokens for a SKILL.md's `description` frontmatter
   value. This is what Claude Code's docs say loads at session start.
 - **Worst-case load** — tokens for a SKILL.md's body. The upper bound
@@ -121,8 +126,9 @@ formulae and threshold table.
 
 - **v0.1.x** — `--output PATH` flag; cross-language SDK path detector
   (down-weights duplicate clusters whose paths only differ in
-  `/python/`, `/go/`, etc); tokenizer error magnitude published from
-  sample runs.
+  `/python/`, `/go/`, etc); broader tokenizer calibration across CJK
+  and pure-code corpora (initial English mixed prose/code sample shows
+  cl100k_base underestimates Claude tokens by ~18%).
 - **v0.2** — `.cursor/rules/*.mdc` scanning; methodology calibration
   (replace heuristic A/B/C/D/F thresholds with a reference distribution
   derived from real `.claude/` directories); `--watch`; share affordance
