@@ -144,6 +144,16 @@ pytest
 ruff check .
 ```
 
+## Demo
+
+A 30-second walkthrough of `promptc analyze` running against a real
+`.claude/` directory and the resulting HTML report.
+
+<video src="https://github.com/user-attachments/assets/12e38e73-db2f-4cb8-86b0-49f12bf6d8b3" controls width="100%">
+  Your browser does not support inline video.
+  <a href="https://github.com/user-attachments/assets/12e38e73-db2f-4cb8-86b0-49f12bf6d8b3">Open the demo video</a>.
+</video>
+
 ## License
 
 MIT
