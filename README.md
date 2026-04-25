@@ -28,7 +28,7 @@ required.
 ## Install
 
 ```bash
-git clone https://github.com/Eden/promptc
+git clone https://github.com/edenfunf/promptc
 cd promptc
 pip install -e .
 ```

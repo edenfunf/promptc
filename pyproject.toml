@@ -42,9 +42,9 @@ dev = [
 promptc = "promptc.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/Eden/promptc"
-Repository = "https://github.com/Eden/promptc"
-Issues = "https://github.com/Eden/promptc/issues"
+Homepage = "https://github.com/edenfunf/promptc"
+Repository = "https://github.com/edenfunf/promptc"
+Issues = "https://github.com/edenfunf/promptc/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/promptc"]
