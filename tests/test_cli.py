@@ -314,6 +314,30 @@ def test_output_flag_writes_report_to_chosen_path(tmp_path: Path) -> None:
     assert not Path("promptc-report.html").exists()
 
 
+def test_empty_dir_default_points_at_written_html(tmp_path: Path) -> None:
+    """When the scanned dir has no .md files, default flow still writes the
+    Insufficient-state HTML report — terminal output should hint at it
+    instead of contradicting itself with 'No files found' + silent file-write."""
+    runner = CliRunner()
+    result = runner.invoke(main, ["analyze", str(tmp_path)])
+    assert result.exit_code == 0
+    assert "No markdown files found" in result.output
+    assert "empty-state report has still been written" in result.output
+    assert Path("promptc-report.html").exists()
+
+
+def test_empty_dir_no_html_explains_what_promptc_looks_for(tmp_path: Path) -> None:
+    """With --no-html, no report is written — terminal hint should describe
+    what promptc scans for instead of pointing at a non-existent file."""
+    runner = CliRunner()
+    result = runner.invoke(main, ["analyze", str(tmp_path), "--no-html"])
+    assert result.exit_code == 0
+    assert "No markdown files found" in result.output
+    assert ".claude/skills/" in result.output
+    assert "empty-state report has still been written" not in result.output
+    assert not Path("promptc-report.html").exists()
+
+
 def test_output_with_no_html_warns(tmp_path: Path) -> None:
     _seed_fixture(tmp_path)
     target = tmp_path / "should-not-exist.html"

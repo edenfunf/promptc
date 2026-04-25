@@ -141,6 +141,7 @@ def analyze(
         exposure_result,
         grade,
         verbose=verbose,
+        html_will_be_written=not no_html,
     )
 
     if no_html:
@@ -177,12 +178,27 @@ def _print_terminal(
     grade: Grade,
     *,
     verbose: bool,
+    html_will_be_written: bool = True,
 ) -> None:
     if not scan_result.files:
         _print_cursor_sibling_warning(console, scan_result)
         console.print(
             f"[yellow]No markdown files found under[/yellow] [bold]{scan_result.root}[/bold]."
         )
+        # Resolve the apparent contradiction of "nothing found" + a written
+        # report file: the HTML still ships an Insufficient hero with copy
+        # explaining what promptc looks for. Point the reader at it. When
+        # --no-html is set, no report exists, so suggest the doc-side hint.
+        if html_will_be_written:
+            console.print(
+                "[dim]An empty-state report has still been written below "
+                "with guidance on what promptc looks for.[/dim]"
+            )
+        else:
+            console.print(
+                "[dim]promptc looks for SKILL.md and other .md files under "
+                ".claude/skills/, .claude/commands/, and .claude/agents/.[/dim]"
+            )
         _print_warnings(console, scan_result)
         return
 
