@@ -32,6 +32,22 @@ def test_classify_skill_md_case_insensitive() -> None:
     assert classify(("skills", "security", "Skill.md")) == FileRole.SKILL
 
 
+def test_classify_skill_md_at_root_when_scanned_inside_skills_tree() -> None:
+    # Bug #11: pointing promptc at /tmp/anthropics-skills/skills/ produces
+    # relative paths like ('pdf', 'SKILL.md') with no 'skills' segment.
+    # SKILL.md must still be classified as SKILL.
+    assert classify(("pdf", "SKILL.md")) == FileRole.SKILL
+    assert classify(("SKILL.md",)) == FileRole.SKILL
+    assert classify(("any", "deep", "nested", "SKILL.md")) == FileRole.SKILL
+
+
+def test_classify_skill_md_takes_priority_over_other_path_signals() -> None:
+    # Even if a SKILL.md happens to live under commands/ or agents/, it is
+    # still a skill — filename wins over directory.
+    assert classify(("commands", "SKILL.md")) == FileRole.SKILL
+    assert classify(("agents", "SKILL.md")) == FileRole.SKILL
+
+
 def test_classify_prompt() -> None:
     assert classify(("commands", "review.md")) == FileRole.PROMPT
 
@@ -127,3 +143,28 @@ def test_scan_prefers_dot_claude_subdir(tmp_path: Path) -> None:
 
     assert paths == {"CLAUDE.md"}
     assert result.root == (tmp_path / ".claude").resolve()
+
+
+def test_scan_detects_cursor_sibling_count(tmp_path: Path) -> None:
+    """When `.cursor/rules/` is a sibling of `.claude/`, count its .mdc files."""
+    _write(tmp_path / ".claude" / "skills" / "x" / "SKILL.md", "---\nname: x\n---\nbody\n")
+    _write(tmp_path / ".cursor" / "rules" / "general.mdc", "rule body\n")
+    _write(tmp_path / ".cursor" / "rules" / "tests.mdc", "rule body\n")
+    _write(tmp_path / ".cursor" / "rules" / "nested" / "api.mdc", "rule body\n")
+
+    result = scan(tmp_path)
+    assert result.cursor_sibling_files == 3
+
+
+def test_scan_no_cursor_sibling_returns_zero(tmp_path: Path) -> None:
+    _write(tmp_path / ".claude" / "skills" / "x" / "SKILL.md", "---\nname: x\n---\nbody\n")
+    result = scan(tmp_path)
+    assert result.cursor_sibling_files == 0
+
+
+def test_scan_cursor_sibling_when_no_dot_claude(tmp_path: Path) -> None:
+    """If user points at a dir without .claude/, still detect adjacent .cursor/."""
+    _write(tmp_path / "skills" / "x" / "SKILL.md", "---\nname: x\n---\nbody\n")
+    _write(tmp_path / ".cursor" / "rules" / "rule.mdc", "rule\n")
+    result = scan(tmp_path)
+    assert result.cursor_sibling_files == 1

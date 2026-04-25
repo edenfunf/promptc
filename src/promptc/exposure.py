@@ -18,13 +18,22 @@ This module computes the gap between the two scenarios described above
 *without* claiming which one applies to any given user. We measure the
 ceiling.
 
-Definitions:
-    - promised load        = tokens for the frontmatter `name` and
-                             `description` values (what the docs
-                             describe as the at-startup cost).
-    - worst-case load      = tokens for the entire SKILL.md file.
-    - exposure multiplier  = worst-case / promised, per file and
-                             aggregate.
+Definitions (v0.1.x — symmetric content-only ratio):
+    - promised load        = tokens for the ``description`` frontmatter
+                             value only. This is the field the docs
+                             call out as loaded at startup so Claude
+                             knows when the skill applies.
+    - worst-case load      = tokens for the SKILL.md body (markdown
+                             content after frontmatter). This is what
+                             would load on demand.
+    - exposure multiplier  = body / description, per file and aggregate.
+
+Both numerator and denominator are content tokens — no frontmatter
+overhead, no name-vs-keys-and-delimiters asymmetry. A previous v0.1.0
+formula compared full-file (frontmatter + body) tokens to (name +
+description) field values — that ratio inflated the multiplier by
+attributing all frontmatter weight to the numerator while the
+denominator was only two YAML strings.
 
 Only SKILL.md entrypoints are analyzed. CLAUDE.md / AGENTS.md,
 slash-command prompts, subagents, and supporting files inside a skill
@@ -106,19 +115,16 @@ class ExposureReport:
 
 
 def _promised_tokens(parsed: ParsedFile) -> int:
-    """Tokens for frontmatter name + description combined.
+    """Tokens for the frontmatter ``description`` field value only.
 
-    Prefers the cached ``description_tokens`` on the parsed file. Recomputes
-    when either field is missing from the cache but present in frontmatter.
+    Prefers the cached ``description_tokens`` on the parsed file; recomputes
+    if cache is missing but description text is present.
     """
-    name_tokens = count_tokens(parsed.name) if parsed.name else 0
     if parsed.description_tokens is not None:
-        description_tokens = parsed.description_tokens
-    elif parsed.description is not None:
-        description_tokens = count_tokens(parsed.description)
-    else:
-        description_tokens = 0
-    return name_tokens + description_tokens
+        return parsed.description_tokens
+    if parsed.description is not None:
+        return count_tokens(parsed.description)
+    return 0
 
 
 def analyze_exposure(files: list[ParsedFile]) -> ExposureReport:
@@ -138,7 +144,7 @@ def analyze_exposure(files: list[ParsedFile]) -> ExposureReport:
             file_path=parsed.relative_path,
             name=parsed.name,
             promised_tokens=promised,
-            worst_case_tokens=parsed.total_tokens,
+            worst_case_tokens=parsed.body_tokens,
         )
         report.files.append(exposure)
 

@@ -51,8 +51,10 @@ def test_skill_with_name_and_description_computes_promised(tmp_path: Path) -> No
 
     assert report.skill_count == 1
     f = report.files[0]
-    assert f.promised_tokens > 0
-    assert f.worst_case_tokens == parsed.total_tokens
+    # New (v0.1.x): symmetric ratio. promised = description tokens only,
+    # worst-case = body tokens only. Both content-only.
+    assert f.promised_tokens == parsed.description_tokens
+    assert f.worst_case_tokens == parsed.body_tokens
     assert f.worst_case_tokens > f.promised_tokens
     assert f.multiplier is not None
     assert f.multiplier > 1.0
@@ -88,7 +90,8 @@ def test_aggregate_multiplier_averages_correctly(tmp_path: Path) -> None:
 
     assert report.skill_count == 2
     assert report.total_promised > 0
-    assert report.total_worst_case == skill_a.total_tokens + skill_b.total_tokens
+    # New (v0.1.x): worst-case is body tokens, not full file tokens.
+    assert report.total_worst_case == skill_a.body_tokens + skill_b.body_tokens
     assert report.multiplier is not None
     assert report.multiplier == report.total_worst_case / report.total_promised
 
@@ -132,6 +135,38 @@ def test_anthropic_docs_url_points_to_current_domain() -> None:
     # docs.anthropic.com/en/docs/claude-code/skills 301-redirects to
     # code.claude.com/docs/en/skills; use the canonical target directly.
     assert "code.claude.com" in ANTHROPIC_DOCS_URL
+
+
+def test_multiplier_uses_symmetric_body_over_description(tmp_path: Path) -> None:
+    """Regression test for the v0.1.0 asymmetry bug.
+
+    Before the fix, promised was (name + description tokens) and worst-case
+    was total_tokens including frontmatter overhead. That inflated the
+    multiplier because frontmatter weight was attributed to the numerator
+    only. Persona C flagged this as an HN-attack-grade bug.
+
+    New formula: body_tokens / description_tokens. Frontmatter is excluded
+    from both sides.
+    """
+    text = (
+        "---\n"
+        "name: long-name-with-many-tokens-on-purpose\n"
+        "description: tiny\n"
+        "---\n"
+        "# Body\n\n"
+        + ("body content " * 30)
+        + "\n"
+    )
+    parsed = _make(tmp_path, "skills/x/SKILL.md", text, FileRole.SKILL)
+    report = analyze_exposure([parsed])
+    f = report.files[0]
+
+    # Symmetric: name should NOT contribute to promised; frontmatter overhead
+    # should NOT contribute to worst-case.
+    assert f.promised_tokens == parsed.description_tokens
+    assert f.worst_case_tokens == parsed.body_tokens
+    assert f.promised_tokens < parsed.frontmatter_tokens  # description is a subset
+    assert f.worst_case_tokens < parsed.total_tokens  # body excludes frontmatter
 
 
 def test_multiplier_none_when_all_skills_lack_description(tmp_path: Path) -> None:

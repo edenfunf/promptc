@@ -76,9 +76,32 @@ class DuplicateGroupCard:
     chunks: list[DuplicateChunkCard]
 
 
+# Common Unicode punctuation → ASCII fallback so previews render without
+# mojibake on legacy Windows consoles (cp950 / cp1252) and look identical
+# in plain-ASCII contexts. Run before truncation.
+_ASCII_FALLBACKS = {
+    "—": "--",   # em dash
+    "–": "-",    # en dash
+    "…": "...",  # ellipsis
+    "“": '"',    # left double quote
+    "”": '"',    # right double quote
+    "‘": "'",    # left single quote
+    "’": "'",    # right single quote
+    "•": "*",    # bullet
+    " ": " ",    # non-breaking space
+}
+
+
+def _ascii_safe(text: str) -> str:
+    """Replace common smart-punctuation with ASCII equivalents."""
+    for src, dst in _ASCII_FALLBACKS.items():
+        text = text.replace(src, dst)
+    return text
+
+
 def _chunk_preview(text: str, max_chars: int = 280) -> str:
-    """Collapse internal whitespace; truncate with an ellipsis at word boundary."""
-    collapsed = " ".join(text.split())
+    """Collapse whitespace; ASCII-fold smart punctuation; truncate at word boundary."""
+    collapsed = _ascii_safe(" ".join(text.split()))
     if len(collapsed) <= max_chars:
         return collapsed
     cut = collapsed[: max_chars - 1].rsplit(" ", 1)[0]
@@ -144,6 +167,15 @@ def _top_files(
     return rows
 
 
+def _hero_state(scan_result: ScanResult, grade: Grade) -> str:
+    """Return one of "insufficient", "debt", or "clean" for hero dispatch."""
+    if scan_result.is_insufficient:
+        return "insufficient"
+    if grade.letter in ("D", "F"):
+        return "debt"
+    return "clean"
+
+
 def render_html(
     scan_result: ScanResult,
     dedup_result: DedupResult,
@@ -152,12 +184,19 @@ def render_html(
 ) -> str:
     """Render the analysis as a single self-contained HTML document."""
     template = _env.get_template("report.html.j2")
+    skill_count = exposure_result.skill_count
+    skills_with_desc = skill_count - len(exposure_result.skills_without_description)
+    body_total = sum(f.body_tokens for f in scan_result.files)
     return template.render(
         version=__version__,
         scan=scan_result,
         dedup=dedup_result,
         exposure=exposure_result,
         grade=grade,
+        hero_state=_hero_state(scan_result, grade),
+        skill_count=skill_count,
+        skills_with_description=skills_with_desc,
+        body_total_tokens=body_total,
         top_files=_top_files(scan_result, dedup_result, 10),
         top_duplicates=_top_duplicate_groups(dedup_result, 5),
         disclaimer=TOKENIZER_DISCLAIMER,

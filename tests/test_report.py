@@ -10,16 +10,23 @@ from promptc.scanner import scan
 
 
 def _seed(root: Path) -> None:
+    """Sufficient fixture with unique body content per skill (Grade A territory)."""
     claude = root / ".claude"
     claude.mkdir(parents=True)
     (claude / "CLAUDE.md").write_text("# instructions\n", encoding="utf-8")
-    skill_dir = claude / "skills" / "security"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: security\ndescription: Be safe.\n---\n"
-        "# Security\n\nAlways use parameterized queries.\n",
-        encoding="utf-8",
-    )
+    fillers = {
+        "security": "Validate inputs at every boundary before processing them. ",
+        "testing": "Prefer integration tests over mocks when the integration is cheap. ",
+        "logging": "Use structured logging and scrub PII at the boundary always. ",
+    }
+    for name, filler in fillers.items():
+        skill_dir = claude / "skills" / name
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            f"---\nname: {name}\ndescription: {name} guidance.\n---\n"
+            f"# {name.title()}\n\n{filler * 100}\n",
+            encoding="utf-8",
+        )
 
 
 def _analyze(tmp_path: Path):
@@ -65,10 +72,13 @@ def test_render_html_includes_hero_content(tmp_path: Path) -> None:
     scan_r, dedup_r, exposure_r, grade = _analyze(tmp_path)
     html = render_html(scan_r, dedup_r, exposure_r, grade)
 
-    assert "CONTEXT DEBT REPORT" in html
+    # New 3-state hero: grade letter + grade-keyed CSS class are present.
     assert grade.display in html
     assert f"hero--{grade.letter.lower()}" in html
-    assert "tokens wasted" in html
+    # The "See Skill Context Exposure below" pointer fires on clean/moderate
+    # states; debt state has "Top offenders below". One of these two strings
+    # should be present for any sufficient fixture.
+    assert "Skill Context Exposure" in html or "Top offenders below" in html
 
 
 def test_render_html_includes_top_files_table(tmp_path: Path) -> None:
@@ -127,6 +137,10 @@ def test_render_html_escapes_html_in_file_paths(tmp_path: Path) -> None:
         dedup=dedup_r,
         exposure=exposure_r,
         grade=grade,
+        hero_state="clean",
+        skill_count=0,
+        skills_with_description=0,
+        body_total_tokens=0,
         top_files=top,
         top_duplicates=[],
         disclaimer="",
@@ -188,16 +202,25 @@ def test_render_html_with_empty_scan_still_renders(tmp_path: Path) -> None:
 
 
 def _seed_with_duplicates(root: Path) -> None:
+    """Three-way near-duplicate fixture, padded past the Insufficient threshold."""
     claude = root / ".claude" / "skills"
     claude.mkdir(parents=True)
-    body = (
+    base = (
         "# Security\n\n"
         "Always use parameterized queries for every database access. "
         "Never concatenate user-provided strings into SQL statements directly."
     )
-    for name in ("security", "python-security", "db-rules"):
+    # Per-file unique filler so the dedup signal is meaningful AND aggregate
+    # body tokens clear the Insufficient ≥1k threshold.
+    fillers = {
+        "security": "Audit access logs after any disclosure event regularly. ",
+        "python-security": "Prefer the standard library secrets module always. ",
+        "db-rules": "Size connection pools to peak load divided by latency. ",
+    }
+    for name, body_extra in fillers.items():
         (claude / f"{name}.md").write_text(
-            f"---\nname: {name}\ndescription: SQL safety rule.\n---\n\n{body}\n",
+            f"---\nname: {name}\ndescription: SQL safety rule.\n---\n\n"
+            f"{base}\n\n{body_extra * 50}\n",
             encoding="utf-8",
         )
 
@@ -291,6 +314,77 @@ def test_chunk_preview_truncates_long_text() -> None:
     assert len(out) <= 80
     assert out.endswith(" ...")
     assert "word word" in out
+
+
+def test_render_html_insufficient_state_renders_distinct_hero(tmp_path: Path) -> None:
+    """Sub-threshold fixture should produce the Insufficient hero, not a grade hero."""
+    claude = tmp_path / ".claude" / "skills" / "x"
+    claude.mkdir(parents=True)
+    (claude / "SKILL.md").write_text(
+        "---\nname: x\ndescription: tiny.\n---\n# X\n\nshort body.\n",
+        encoding="utf-8",
+    )
+    html = render_html(*_analyze(tmp_path))
+    assert "NOT ENOUGH TO AUDIT YET" in html
+    assert "hero--insufficient" in html
+    # Per D-Δ1: insufficient copy must surface the Cursor v0.2 note.
+    assert ".cursor/rules/" in html
+    assert "v0.2" in html
+    # Exposure section must not render in insufficient state.
+    assert "Skill Context Exposure" not in html
+
+
+def test_render_html_debt_state_shows_multiplier_in_hero(tmp_path: Path) -> None:
+    """A D/F-grade fixture should put the multiplier IN the hero as supporting evidence."""
+    claude = tmp_path / ".claude" / "skills"
+    claude.mkdir(parents=True)
+    # Heavy duplication + enough volume to clear Insufficient AND grade ≥ D
+    rule = "Always parameterize SQL queries every single time without exception. " * 40
+    for name in ("a", "b", "c", "d"):
+        (claude / f"{name}.md").write_text(
+            f"---\nname: {name}\ndescription: sql.\n---\n# {name}\n\n{rule}\n",
+            encoding="utf-8",
+        )
+    scan_r, dedup_r, exposure_r, grade = _analyze(tmp_path)
+    # Sanity: this fixture should actually be in debt-state territory
+    assert grade.letter in ("D", "F"), f"fixture didn't grade D/F: got {grade.display}"
+    html = render_html(scan_r, dedup_r, exposure_r, grade)
+    assert "Top offenders below" in html
+    assert "tokens of duplicate content" in html
+
+
+def test_render_html_clean_state_hides_multiplier_from_hero(tmp_path: Path) -> None:
+    """A-grade fixture should NOT show multiplier in hero, only via 'see below' pointer."""
+    _seed(tmp_path)  # 3 unique skills, no duplicates, A+ grade
+    scan_r, dedup_r, exposure_r, grade = _analyze(tmp_path)
+    # Sanity check
+    assert grade.letter == "A", f"_seed should grade A: got {grade.display}"
+    html = render_html(scan_r, dedup_r, exposure_r, grade)
+    # The hero block (between <section class="hero..."> and the next </section>)
+    # should not contain "Exposure multiplier" — that lives in the dedicated card.
+    import re
+    hero_match = re.search(
+        r'<section class="hero[^"]*">(.*?)</section>', html, re.DOTALL
+    )
+    assert hero_match, "hero section not found"
+    hero_block = hero_match.group(1)
+    assert "Exposure multiplier" not in hero_block
+    # But it must point at the section below.
+    assert "Skill Context Exposure" in hero_block
+
+
+def test_render_html_surfaces_cursor_sibling_warning(tmp_path: Path) -> None:
+    """When .cursor/rules/ is detected, hero must be preceded by a warning banner."""
+    _seed(tmp_path)
+    cursor_rules = tmp_path / ".cursor" / "rules"
+    cursor_rules.mkdir(parents=True)
+    (cursor_rules / "general.mdc").write_text("rule\n", encoding="utf-8")
+    (cursor_rules / "tests.mdc").write_text("rule\n", encoding="utf-8")
+    html = render_html(*_analyze(tmp_path))
+    assert "cursor-warning" in html
+    assert ".cursor/rules/" in html
+    assert "2 file" in html  # count surfaced
+    assert "v0.2" in html
 
 
 def test_top_duplicate_groups_limits_and_orders(tmp_path: Path) -> None:

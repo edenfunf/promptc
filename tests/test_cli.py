@@ -30,13 +30,30 @@ def test_analyze_on_empty_dir_does_not_crash(tmp_path: Path) -> None:
 
 
 def _seed_fixture(root: Path) -> None:
+    """Seed a non-insufficient fixture: ≥3 skills, ≥1k body tokens.
+
+    Most CLI tests want to exercise the normal rendering path (hero, file
+    table, exposure section, etc.). The Insufficient threshold is exercised
+    by its own dedicated tests below.
+    """
     claude = root / ".claude"
-    (claude / "skills" / "security").mkdir(parents=True)
+    claude.mkdir(parents=True)
     (claude / "CLAUDE.md").write_text("# instructions\n", encoding="utf-8")
-    (claude / "skills" / "security" / "SKILL.md").write_text(
-        "---\nname: security\ndescription: Be safe.\n---\n# Body\n",
-        encoding="utf-8",
-    )
+    # Per-skill UNIQUE body to avoid 100%-duplicate F-grade artefact;
+    # 100x repeats gives ≥1k aggregate body tokens to clear Insufficient.
+    fillers = {
+        "security": "Validate inputs at every boundary before processing them. ",
+        "testing": "Prefer integration tests over mocks when the integration is cheap. ",
+        "logging": "Use structured logging and scrub PII at the boundary always. ",
+    }
+    for name, filler in fillers.items():
+        skill_dir = claude / "skills" / name
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            f"---\nname: {name}\ndescription: {name} guidance.\n---\n"
+            f"# {name.title()}\n\n{filler * 100}\n",
+            encoding="utf-8",
+        )
 
 
 def test_analyze_terminal_output_mentions_disclaimer(tmp_path: Path) -> None:
@@ -55,24 +72,38 @@ def test_analyze_json_output_is_valid(tmp_path: Path) -> None:
     assert result.exit_code == 0
 
     payload = json.loads(result.output)
-    assert payload["total_files"] == 2
+    assert payload["total_files"] == 4  # CLAUDE.md + 3 skills
     assert payload["total_tokens"] > 0
     paths = {f["path"] for f in payload["files"]}
-    assert paths == {"CLAUDE.md", "skills/security/SKILL.md"}
+    assert paths == {
+        "CLAUDE.md",
+        "skills/security/SKILL.md",
+        "skills/testing/SKILL.md",
+        "skills/logging/SKILL.md",
+    }
 
 
 def _seed_duplicates_fixture(root: Path) -> None:
-    """Fixture with a 3-way near-duplicate rule to exercise dedup rendering.
+    """Fixture with a 3-way near-duplicate rule + filler to clear Insufficient.
 
     Each variant adds at most one or two trailing qualifier words so the
     Jaccard similarity between pairs lands in ~0.85-0.95 (caught at the
-    0.85 default threshold, missed at 0.99 strict).
+    0.85 default threshold, missed at 0.99 strict). Each file also gets
+    enough non-duplicate filler text to push aggregate body tokens past the
+    Insufficient threshold (≥1k).
     """
     claude = root / ".claude"
     base = (
         "Always use parameterized queries for every database access. "
         "Never concatenate user-provided strings into SQL statements directly"
     )
+    # Non-duplicate filler text per file so dedup ratio is meaningful AND
+    # we clear the Insufficient body-token threshold.
+    filler_phrases = {
+        "security": "Validate all input at boundaries and reject malformed data. ",
+        "python-security": "Prefer the standard library's secrets module for token gen. ",
+        "db-rules": "Use connection pools sized to peak load divided by query latency. ",
+    }
     rules = {
         "security": f"{base}.",
         "python-security": f"**{base}** everywhere.",
@@ -81,8 +112,10 @@ def _seed_duplicates_fixture(root: Path) -> None:
     for name, rule in rules.items():
         skill_dir = claude / "skills" / name
         skill_dir.mkdir(parents=True)
+        filler = filler_phrases[name] * 60  # ~ 400-500 tokens of unique content
         (skill_dir / "SKILL.md").write_text(
-            f"---\nname: {name}\ndescription: Rule source.\n---\n# {name}\n\n{rule}\n",
+            f"---\nname: {name}\ndescription: Rule source.\n---\n# {name}\n\n"
+            f"{rule}\n\n{filler}\n",
             encoding="utf-8",
         )
 
@@ -92,9 +125,12 @@ def test_analyze_renders_hero_panel(tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(main, ["analyze", str(tmp_path)])
     assert result.exit_code == 0
-    assert "CONTEXT DEBT REPORT" in result.output
-    assert "tokens wasted" in result.output
-    assert "Grade:" in result.output
+    # New 3-state hero: at minimum, the grade letter and a forward-pointer
+    # line ("See ... below") must appear when the fixture is sufficient.
+    grades = ("A+", "A-", "B+", "B-", "C+", "C-", "D+", "D-", "F")
+    assert any(letter in result.output for letter in grades)
+    # Pointer line in clean hero, or full section heading in debt state.
+    assert "Skill Context Exposure" in result.output
 
 
 def test_analyze_renders_savings_when_duplicates_exist(tmp_path: Path) -> None:
@@ -235,7 +271,8 @@ def test_analyze_writes_html_report_to_cwd_by_default(tmp_path: Path) -> None:
     assert "Full report:" in result.output
     html = report.read_text(encoding="utf-8")
     assert "<!DOCTYPE html>" in html
-    assert "CONTEXT DEBT REPORT" in html
+    # New 3-state hero: at minimum the hero panel must be present.
+    assert "<section class=\"hero" in html
 
 
 def test_no_html_flag_skips_report_file(tmp_path: Path) -> None:

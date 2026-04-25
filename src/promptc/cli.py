@@ -45,7 +45,7 @@ def _make_console() -> Console:
 @click.version_option(__version__, prog_name="promptc")
 @click.pass_context
 def main(ctx: click.Context) -> None:
-    """promptc - measure worst-case context exposure in your Claude / Cursor setup."""
+    """promptc - measure worst-case skill-context exposure in your Claude Code setup."""
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
@@ -161,6 +161,7 @@ def _print_terminal(
     verbose: bool,
 ) -> None:
     if not scan_result.files:
+        _print_cursor_sibling_warning(console, scan_result)
         console.print(
             f"[yellow]No markdown files found under[/yellow] [bold]{scan_result.root}[/bold]."
         )
@@ -169,9 +170,15 @@ def _print_terminal(
 
     total_tokens = scan_result.total_tokens
     wasted = dedup_result.total_wasted_tokens
-    ratio = grade.bloat_ratio
 
-    _print_hero(console, grade=grade, wasted=wasted, ratio=ratio, total=total_tokens)
+    _print_cursor_sibling_warning(console, scan_result)
+    _print_hero(
+        console,
+        scan_result=scan_result,
+        dedup_result=dedup_result,
+        exposure_result=exposure_result,
+        grade=grade,
+    )
     console.print()
 
     console.print(
@@ -188,7 +195,7 @@ def _print_terminal(
         console.print()
         _print_duplicate_groups(console, dedup_result, limit=5, verbose=verbose)
 
-    if exposure_result.skill_count:
+    if exposure_result.skill_count and not scan_result.is_insufficient:
         console.print()
         _print_exposure(console, exposure_result, limit=5)
 
@@ -202,42 +209,195 @@ def _print_terminal(
     console.print(f"[dim]{TOKENIZER_DISCLAIMER}[/dim]")
 
 
+def _print_cursor_sibling_warning(console: Console, scan_result: ScanResult) -> None:
+    """Surface .cursor/rules/ presence so Cursor users know they weren't audited.
+
+    Prints to stderr-style yellow line above the hero. promptc v0.1 doesn't
+    walk .cursor/ — Cursor support is tracked for v0.2.
+    """
+    n = scan_result.cursor_sibling_files
+    if n == 0:
+        return
+    console.print(
+        f"[yellow]Detected .cursor/rules/ ({n} file{'s' if n != 1 else ''}) — "
+        "not yet scanned. Cursor support is tracked for v0.2.[/yellow]"
+    )
+    console.print()
+
+
 def _print_hero(
     console: Console,
     *,
+    scan_result: ScanResult,
+    dedup_result: DedupResult,
+    exposure_result: ExposureReport,
     grade: Grade,
-    wasted: int,
-    ratio: float,
-    total: int,
 ) -> None:
-    title = Text("CONTEXT DEBT REPORT", style="bold")
-    wasted_line = Text(justify="center")
-    wasted_line.append(f"{wasted:,}", style=f"bold {grade.color}")
-    wasted_line.append(" tokens wasted", style="dim")
+    """Dispatch hero rendering across the 3 framing states.
 
-    ratio_line = Text(
-        f"{ratio:.1%} of your {total:,}-token context",
+    Per `framing_locked.md`:
+      - Insufficient (data threshold): no grade shown, neutral copy.
+      - Debt (D / F): red, multiplier appears IN hero as supporting evidence.
+      - Clean / Moderate (A / B / C): grade shown, multiplier moves down-page.
+    """
+    if scan_result.is_insufficient:
+        _print_hero_insufficient(console, scan_result)
+    elif grade.letter in ("D", "F"):
+        _print_hero_debt(
+            console,
+            scan_result=scan_result,
+            dedup_result=dedup_result,
+            exposure_result=exposure_result,
+            grade=grade,
+        )
+    else:
+        _print_hero_clean(
+            console,
+            scan_result=scan_result,
+            dedup_result=dedup_result,
+            exposure_result=exposure_result,
+            grade=grade,
+        )
+
+
+def _print_hero_insufficient(console: Console, scan_result: ScanResult) -> None:
+    skill_count = sum(1 for f in scan_result.files if f.role is FileRole.SKILL)
+    body_tokens = scan_result.skill_body_tokens
+
+    title = Text("NOT ENOUGH TO AUDIT YET", style="bold")
+    line1 = Text(
+        f"Your .claude/ has {skill_count} skill file{'s' if skill_count != 1 else ''}"
+        f" ({body_tokens:,} body tokens).",
+        justify="center",
+    )
+    line2 = Text(
+        "promptc currently audits .claude/ only -- if your prompts live in "
+        ".cursor/rules/, support is tracked for v0.2.",
+        style="dim",
+        justify="center",
+    )
+    line3 = Text(
+        "promptc needs at least 3 skills and 1,000 body tokens to find "
+        "patterns. Add more skills, or point promptc at a larger directory.",
         style="dim",
         justify="center",
     )
 
-    grade_line = Text(justify="center")
-    grade_line.append("Grade: ", style="dim")
-    grade_line.append(grade.display, style=f"bold {grade.color}")
+    body = Group(line1, Text(""), line2, Text(""), line3)
+    panel = Panel(body, title=title, border_style="cyan", padding=(1, 4))
+    console.print(panel)
 
+
+def _print_hero_clean(
+    console: Console,
+    *,
+    scan_result: ScanResult,
+    dedup_result: DedupResult,
+    exposure_result: ExposureReport,
+    grade: Grade,
+) -> None:
+    """A / B / C states. No multiplier in hero (moves to its own section)."""
+    skill_count = exposure_result.skill_count
+    skills_with_desc = skill_count - len(exposure_result.skills_without_description)
+
+    title = Text(grade.display, style=f"bold {grade.color}")
+
+    if grade.letter == "A":
+        if dedup_result.total_groups == 0:
+            headline = Text("Your .claude/ is clean.", justify="center")
+            subtitle_text = (
+                f"No duplicate content found. {skills_with_desc} of "
+                f"{skill_count} skills have descriptions."
+            )
+        else:
+            headline = Text(
+                f"Mostly clean - {dedup_result.total_groups} small "
+                f"duplicate group{'s' if dedup_result.total_groups != 1 else ''} flagged below.",
+                justify="center",
+            )
+            subtitle_text = (
+                f"{skills_with_desc} of {skill_count} skills have descriptions."
+            )
+    else:  # B or C
+        headline = Text(
+            f"{dedup_result.total_groups} duplicate "
+            f"group{'s' if dedup_result.total_groups != 1 else ''} found "
+            f"({dedup_result.total_wasted_tokens:,} tokens, "
+            f"{grade.bloat_ratio:.0%} of body).",
+            justify="center",
+        )
+        subtitle_text = (
+            f"{skill_count} skill file{'s' if skill_count != 1 else ''} scanned. "
+            "Details in the sections below."
+        )
+
+    pointer = Text(
+        "See \"Skill Context Exposure\" below for worst-case load detail.",
+        style="dim",
+        justify="center",
+    )
+
+    subtitle = Text(subtitle_text, style="dim", justify="center")
     body = Group(
-        Align.center(wasted_line),
-        Align.center(ratio_line),
+        Align.center(title),
         Text(""),
-        Align.center(grade_line),
+        headline,
+        Text(""),
+        subtitle,
+        Text(""),
+        pointer,
+    )
+    panel = Panel(body, border_style=grade.color, padding=(1, 4))
+    console.print(panel)
+
+
+def _print_hero_debt(
+    console: Console,
+    *,
+    scan_result: ScanResult,
+    dedup_result: DedupResult,
+    exposure_result: ExposureReport,
+    grade: Grade,
+) -> None:
+    """D / F states. Multiplier IN hero, framed as amplifying the verdict."""
+    body_total = sum(f.body_tokens for f in scan_result.files)
+    wasted = dedup_result.total_wasted_tokens
+    files_affected = len(dedup_result.per_file_wasted)
+
+    title = Text(grade.display, style=f"bold {grade.color}")
+
+    headline = Text(justify="center")
+    headline.append(f"{wasted:,}", style=f"bold {grade.color}")
+    headline.append(
+        f" tokens of duplicate content across {files_affected} "
+        f"file{'s' if files_affected != 1 else ''}",
+        style="bold",
     )
 
-    panel = Panel(
-        body,
-        title=title,
-        border_style=grade.color,
-        padding=(1, 4),
+    ratio_line = Text(
+        f"({grade.bloat_ratio:.0%} of {body_total:,} body tokens)",
+        style="dim",
+        justify="center",
     )
+
+    mult = exposure_result.multiplier
+    if mult and mult > 1:
+        amplifier = Text(justify="center")
+        amplifier.append("Plus ", style="dim")
+        amplifier.append(f"{mult:.1f}x", style=f"bold {grade.color}")
+        amplifier.append(" worst-case context exposure on top.", style="dim")
+    else:
+        amplifier = None
+
+    pointer = Text("Top offenders below.", style="dim", justify="center")
+
+    parts: list = [Align.center(title), Text(""), headline, ratio_line]
+    if amplifier is not None:
+        parts.extend([Text(""), amplifier])
+    parts.extend([Text(""), pointer])
+    body = Group(*parts)
+
+    panel = Panel(body, border_style=grade.color, padding=(1, 4))
     console.print(panel)
 
 
@@ -284,8 +444,8 @@ def _print_exposure(console: Console, report: ExposureReport, *, limit: int) -> 
     summary = Table(show_header=False, box=None, pad_edge=False)
     summary.add_column(style="dim")
     summary.add_column(justify="right")
-    summary.add_row("Promised load (name + description)", f"{promised:,} tokens")
-    summary.add_row("Worst-case load (full SKILL.md)", f"{worst:,} tokens")
+    summary.add_row("Promised load (description only)", f"{promised:,} tokens")
+    summary.add_row("Worst-case load (SKILL.md body)", f"{worst:,} tokens")
     summary.add_row("Exposure multiplier", f"[red]{mult_display}[/red]")
     console.print(summary)
 

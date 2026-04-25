@@ -10,58 +10,129 @@
 
   <main>
 
+    {% if scan.cursor_sibling_files %}
+    <div class="cursor-warning">
+      Detected <code>.cursor/rules/</code>
+      ({{ scan.cursor_sibling_files }} file{{ '' if scan.cursor_sibling_files == 1 else 's' }})
+      — not yet scanned. Cursor support is tracked for v0.2.
+    </div>
+    {% endif %}
+
+    {% if hero_state == "insufficient" %}
+    <section class="hero hero--insufficient">
+      <div class="hero__eyebrow">NOT ENOUGH TO AUDIT YET</div>
+      <p class="hero__copy">
+        Your <code>.claude/</code> has {{ skill_count }}
+        skill file{{ '' if skill_count == 1 else 's' }}
+        ({{ "{:,}".format(scan.skill_body_tokens) }} body tokens).
+      </p>
+      <p class="hero__copy hero__copy--dim">
+        promptc currently audits <code>.claude/</code> only — if your prompts
+        live in <code>.cursor/rules/</code>, support is tracked for v0.2.
+      </p>
+      <p class="hero__copy hero__copy--dim">
+        promptc needs at least 3 skills and 1,000 body tokens to find
+        patterns. Add more skills, or point promptc at a larger directory.
+      </p>
+    </section>
+
+    {% elif hero_state == "debt" %}
     <section class="hero hero--{{ grade.letter | lower }}">
-      <div class="hero__eyebrow">CONTEXT DEBT REPORT</div>
-
-      <div class="hero__primary">
-        <div class="hero__number">{{ "{:,}".format(dedup.total_wasted_tokens) }}</div>
-        <div class="hero__number-label">tokens wasted</div>
-      </div>
-
-      <div class="hero__secondary">
-        That's
-        <strong>{{ "{:.1f}%".format(grade.bloat_ratio * 100) }}</strong>
-        of your
-        <strong>{{ "{:,}".format(scan.total_tokens) }}</strong>-token context
-      </div>
-
-      <div class="hero__grade">
+      <div class="hero__grade-wrap">
         <span class="hero__grade-label">Grade</span>
         <span class="hero__grade-value">{{ grade.display }}</span>
       </div>
 
-      <div class="hero__meta">
-        {{ scan.total_files }} files scanned · {{ exposure.skill_count }} skill{{ '' if exposure.skill_count == 1 else 's' }}
-        {% if exposure.multiplier %}
-          · worst-case exposure
-          <strong>{{ "{:.1f}×".format(exposure.multiplier) }}</strong>
-        {% endif %}
+      <div class="hero__primary">
+        <div class="hero__number">{{ "{:,}".format(dedup.total_wasted_tokens) }}</div>
+        <div class="hero__number-label">
+          tokens of duplicate content across
+          {{ dedup.per_file_wasted | length }} file{{ '' if dedup.per_file_wasted | length == 1 else 's' }}
+        </div>
       </div>
+
+      <div class="hero__secondary">
+        ({{ "{:.0%}".format(grade.bloat_ratio) }} of {{ "{:,}".format(body_total_tokens) }} body tokens)
+      </div>
+
+      {% if exposure.multiplier and exposure.multiplier > 1 %}
+      <div class="hero__amplifier">
+        Plus
+        <strong>{{ "{:.1f}×".format(exposure.multiplier) }}</strong>
+        worst-case context exposure on top.
+      </div>
+      {% endif %}
+
+      <div class="hero__pointer">Top offenders below ↓</div>
     </section>
 
-    {% if exposure.skill_count and exposure.multiplier %}
+    {% else %}
+    {# clean / moderate state — A or B/C, no multiplier in hero #}
+    <section class="hero hero--{{ grade.letter | lower }}">
+      <div class="hero__grade-wrap">
+        <span class="hero__grade-label">Grade</span>
+        <span class="hero__grade-value">{{ grade.display }}</span>
+      </div>
+
+      {% if grade.letter == "A" %}
+        {% if dedup.total_groups == 0 %}
+      <p class="hero__headline">Your <code>.claude/</code> is clean.</p>
+      <p class="hero__copy hero__copy--dim">
+        No duplicate content found.
+        {{ skills_with_description }} of {{ skill_count }}
+        skill{{ '' if skill_count == 1 else 's' }} have descriptions.
+      </p>
+        {% else %}
+      <p class="hero__headline">
+        Mostly clean — {{ dedup.total_groups }}
+        small duplicate group{{ '' if dedup.total_groups == 1 else 's' }} flagged below.
+      </p>
+      <p class="hero__copy hero__copy--dim">
+        {{ skills_with_description }} of {{ skill_count }}
+        skill{{ '' if skill_count == 1 else 's' }} have descriptions.
+      </p>
+        {% endif %}
+      {% else %}
+      <p class="hero__headline">
+        {{ dedup.total_groups }} duplicate
+        group{{ '' if dedup.total_groups == 1 else 's' }} found
+        ({{ "{:,}".format(dedup.total_wasted_tokens) }} tokens,
+        {{ "{:.0%}".format(grade.bloat_ratio) }} of body).
+      </p>
+      <p class="hero__copy hero__copy--dim">
+        {{ skill_count }} skill file{{ '' if skill_count == 1 else 's' }} scanned.
+      </p>
+      {% endif %}
+
+      <p class="hero__pointer">
+        See <em>Skill Context Exposure</em> below for worst-case load detail.
+      </p>
+    </section>
+    {% endif %}
+
+    {% if exposure.skill_count and exposure.multiplier and not scan.is_insufficient %}
     <section class="card exposure">
       <header class="card__header">
         <h2>Skill Context Exposure</h2>
-        <p class="card__subtitle">Worst-case context cost if the full SKILL.md
-        body ends up in context instead of just the metadata.</p>
+        <p class="card__subtitle">Worst-case context cost if a SKILL.md body
+        ends up in context instead of just its description.</p>
       </header>
 
       <div class="exposure__grid">
         <div class="exposure__cell">
           <div class="exposure__label">Promised load</div>
           <div class="exposure__value">{{ "{:,}".format(exposure.total_promised) }}</div>
-          <div class="exposure__hint">name + description tokens</div>
+          <div class="exposure__hint">description tokens</div>
         </div>
         <div class="exposure__cell exposure__cell--worst">
           <div class="exposure__label">Worst-case load</div>
           <div class="exposure__value">{{ "{:,}".format(exposure.total_worst_case) }}</div>
-          <div class="exposure__hint">full SKILL.md tokens</div>
+          <div class="exposure__hint">SKILL.md body tokens</div>
         </div>
         <div class="exposure__cell exposure__cell--mult">
           <div class="exposure__label">Exposure multiplier</div>
           <div class="exposure__value exposure__value--mult">{{ "{:.1f}×".format(exposure.multiplier) }}</div>
-          <div class="exposure__hint">worst-case ÷ promised</div>
+          <div class="exposure__hint">body ÷ description</div>
         </div>
       </div>
 

@@ -42,26 +42,42 @@ INSTRUCTION_FILES = {"CLAUDE.md", "AGENTS.md"}
 
 
 def classify(relative_parts: tuple[str, ...]) -> FileRole:
-    """Given a path relative to the scan root (POSIX parts), return its role."""
+    """Given a path relative to the scan root (POSIX parts), return its role.
+
+    Classification priority:
+      1. Filename-based: any file literally named ``SKILL.md`` (case-insensitive)
+         is a SKILL, regardless of where it lives. This catches the case
+         where the user points promptc at the inside of a skills tree
+         (e.g. ``promptc analyze /path/to/anthropics-skills/skills``)
+         where the relative paths no longer contain the ``skills/`` segment.
+      2. Root-level instruction files: ``CLAUDE.md`` / ``AGENTS.md`` at root.
+      3. Path-based: ``skills/foo.md`` flat layout, ``commands/*``, ``agents/*``.
+      4. Anything else, including non-SKILL.md files inside ``skills/<name>/``,
+         is OTHER (support material — templates, references, examples).
+    """
     if not relative_parts:
         return FileRole.OTHER
 
     name = relative_parts[-1]
 
+    # Priority 1: SKILL.md is a skill regardless of parent path.
+    if name.lower() == "skill.md":
+        return FileRole.SKILL
+
+    # Priority 2: root-level instruction files.
     if len(relative_parts) == 1 and name in INSTRUCTION_FILES:
         return FileRole.INSTRUCTIONS
 
+    # Priority 3: path-based fallback for non-SKILL.md files.
     if "skills" in relative_parts:
-        # `skills/<name>/SKILL.md` is the entrypoint; flat `skills/<name>.md`
-        # also counts. Everything else under `skills/**` is a support file.
-        if name.lower() == "skill.md":
-            return FileRole.SKILL
         try:
             skills_idx = relative_parts.index("skills")
         except ValueError:
             skills_idx = 0
+        # Flat layout: `skills/foo.md` (exactly one segment after `skills/`).
         if len(relative_parts) - skills_idx == 2:
             return FileRole.SKILL
+        # Anything else under `skills/**` is support material.
         return FileRole.OTHER
     if "commands" in relative_parts:
         return FileRole.PROMPT
@@ -75,6 +91,35 @@ def resolve_scan_root(path: Path) -> Path:
     """If `path` contains a `.claude/` subdir, scan that. Otherwise scan path itself."""
     claude_dir = path / ".claude"
     return claude_dir if claude_dir.is_dir() else path
+
+
+def _count_cursor_sibling(original_path: Path, scan_root: Path) -> int:
+    """Count .mdc files in a sibling `.cursor/rules/` directory, if present.
+
+    Cursor's rule format lives in `.cursor/rules/*.mdc`. promptc v0.1 doesn't
+    walk it (Cursor support is v0.2 work, tracked separately), but if such a
+    directory exists next to the .claude/ being scanned, surface that fact so
+    the user knows the bulk of their AI context wasn't audited.
+
+    Returns 0 if no sibling `.cursor/rules/` exists.
+    """
+    # The "sibling" is relative to the user-specified path, not the resolved
+    # `.claude/` subdir. If the user pointed at /proj and we resolved to
+    # /proj/.claude, the cursor sibling is /proj/.cursor/.
+    if scan_root != original_path and scan_root.name == ".claude":
+        candidate_parent = original_path
+    else:
+        candidate_parent = scan_root.parent if scan_root.name == ".claude" else original_path
+
+    cursor_rules = candidate_parent / ".cursor" / "rules"
+    if not cursor_rules.is_dir():
+        return 0
+    try:
+        return sum(
+            1 for p in cursor_rules.rglob("*.mdc") if p.is_file()
+        )
+    except OSError:
+        return 0
 
 
 def _is_excluded(relative_display: str, patterns: tuple[str, ...]) -> bool:
@@ -104,6 +149,7 @@ def scan(path: Path, *, excludes: Iterable[str] = ()) -> ScanResult:
     """
     root = resolve_scan_root(path).resolve()
     result = ScanResult(root=root)
+    result.cursor_sibling_files = _count_cursor_sibling(path, root)
     exclude_patterns = tuple(excludes)
 
     if not root.exists():
