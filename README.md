@@ -6,8 +6,6 @@
 
 > Measure worst-case skill-context exposure in your Claude Code setup.
 
-**Status:** v0.1.0 in development. Not yet published to PyPI; install from source.
-
 ## What this is for
 
 If you've been collecting Claude Code skills for a while, your `.claude/`
@@ -28,12 +26,16 @@ required.
 ## Install
 
 ```bash
+pip install promptc
+```
+
+Or from source if you want to hack on it:
+
+```bash
 git clone https://github.com/edenfunf/promptc
 cd promptc
 pip install -e .
 ```
-
-(PyPI release lands with v0.1.1.)
 
 ## Usage
 
