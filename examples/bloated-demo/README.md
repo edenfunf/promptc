@@ -6,7 +6,7 @@
 
 ## What's in here
 
-Five SKILL.md files representing a hypothetical small-project setup:
+Six SKILL.md files representing a hypothetical small-project setup:
 
 - `security/SKILL.md` — generic security guidance
 - `sql-safety/SKILL.md` — database-specific rules
@@ -14,12 +14,15 @@ Five SKILL.md files representing a hypothetical small-project setup:
 - `code-review/SKILL.md` — review checklist that re-states many of the
   same rules
 - `testing/SKILL.md` — test guidance with overlapping security points
+- `legacy-rules/SKILL.md` — older guidance the team forgot to clean up;
+  intentionally has **no `description` field** in its frontmatter so the
+  fixture also exercises promptc's missing-description detection
 
 Several rules ("always use parameterized queries", "validate input at the
 boundary", "never log secrets", etc.) appear verbatim or near-verbatim
 across multiple files. That's the failure mode promptc is built to find:
 the engineer who maintains the .claude/ never noticed the same advice
-got pasted into four different skill files.
+got pasted into five different skill files.
 
 ## Reproduce
 
