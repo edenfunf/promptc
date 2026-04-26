@@ -168,3 +168,54 @@ def test_scan_cursor_sibling_when_no_dot_claude(tmp_path: Path) -> None:
     _write(tmp_path / ".cursor" / "rules" / "rule.mdc", "rule\n")
     result = scan(tmp_path)
     assert result.cursor_sibling_files == 1
+
+
+def test_scan_exclude_matches_by_basename(tmp_path: Path) -> None:
+    """Patterns without path separators should match by basename alone, even
+    when the file lives deep in a tree."""
+    _write(
+        tmp_path / "skills" / "auth" / "SKILL.md",
+        "---\nname: auth\ndescription: x\n---\nbody\n",
+    )
+    _write(tmp_path / "skills" / "auth" / "scratch.md", "scratch")
+    result = scan(tmp_path, excludes=("scratch.md",))
+    paths = {f.relative_path for f in result.files}
+    assert "skills/auth/SKILL.md" in paths
+    assert "skills/auth/scratch.md" not in paths
+
+
+def test_scan_path_pointing_to_file_warns(tmp_path: Path) -> None:
+    """If the resolved scan root is a file rather than a directory, surface
+    that as a warning instead of crashing."""
+    target = tmp_path / "single.md"
+    target.write_text("hello", encoding="utf-8")
+    result = scan(target)
+    assert result.files == []
+    assert any("not a directory" in w for w in result.warnings)
+
+
+def test_scan_skips_dotfile_md(tmp_path: Path) -> None:
+    """`.hidden.md` style files are skipped — they're typically editor
+    swap files or backup junk, not user-authored content."""
+    _write(
+        tmp_path / "skills" / "auth" / "SKILL.md",
+        "---\nname: auth\ndescription: x\n---\nbody\n",
+    )
+    _write(tmp_path / "skills" / "auth" / ".hidden.md", "stash")
+    result = scan(tmp_path)
+    paths = {f.relative_path for f in result.files}
+    assert "skills/auth/SKILL.md" in paths
+    assert all(not Path(p).name.startswith(".") for p in paths)
+
+
+def test_scan_skips_non_markdown_files(tmp_path: Path) -> None:
+    """Anything that isn't .md or .mdc is ignored."""
+    _write(
+        tmp_path / "skills" / "auth" / "SKILL.md",
+        "---\nname: auth\ndescription: x\n---\nbody\n",
+    )
+    _write(tmp_path / "skills" / "auth" / "notes.txt", "notes")
+    _write(tmp_path / "skills" / "auth" / "config.yaml", "k: v")
+    result = scan(tmp_path)
+    paths = {f.relative_path for f in result.files}
+    assert paths == {"skills/auth/SKILL.md"}

@@ -353,13 +353,94 @@ class Insight:
     action: str
 
 
+def _insight_for_concentration(exposure_result: ExposureReport) -> Insight | None:
+    """Flag when the top 3 skills hog a disproportionate share of body tokens."""
+    files = exposure_result.files
+    worst_total = exposure_result.total_worst_case
+    if not files or not worst_total or len(files) < 4:
+        return None
+    top3 = sum(f.worst_case_tokens for f in files[:3])
+    share = top3 / worst_total
+    if share < 0.40:
+        return None
+    return Insight(
+        level="warn" if share >= 0.60 else "info",
+        finding=f"Top 3 skills account for {share:.0%} of body size",
+        action="Consider splitting them or trimming bodies",
+    )
+
+
+def _insight_for_sdk_variants(dedup_result: DedupResult) -> Insight | None:
+    """Reassure when a meaningful chunk of duplicates is the SDK-variant
+    detector working as intended (legitimate cross-binding docs, not bloat)."""
+    lv_count = len(dedup_result.language_variant_groups)
+    if not lv_count or not dedup_result.total_groups:
+        return None
+    share = lv_count / dedup_result.total_groups
+    if share < 0.20:
+        return None
+    return Insight(
+        level="ok",
+        finding=(
+            f"{lv_count} of {dedup_result.total_groups} duplicate "
+            "groups are SDK variants"
+        ),
+        action="Already excluded from grade — no action needed",
+    )
+
+
+def _insight_for_missing_descriptions(exposure_result: ExposureReport) -> Insight | None:
+    """Skills without a description field can never have their body deferred."""
+    no_desc = exposure_result.skills_without_description
+    if not no_desc:
+        return None
+    return Insight(
+        level="critical",
+        finding=f"{len(no_desc)} skill(s) missing description field",
+        action="Add a description so Claude can defer the body load",
+    )
+
+
+def _insight_for_top_duplicate(dedup_result: DedupResult) -> Insight | None:
+    """Surface the single largest non-variant duplicate group as the most
+    obvious refactor target."""
+    if not dedup_result.groups:
+        return None
+    top_group = dedup_result.groups[0]
+    if top_group.is_language_variant or top_group.wasted_tokens < 200:
+        return None
+    return Insight(
+        level="warn",
+        finding=(
+            f"Top duplicate group: {top_group.wasted_tokens:,} "
+            f"tokens repeated across {top_group.size} files"
+        ),
+        action="Extract to a shared reference and link from each",
+    )
+
+
+def _insight_for_clean_state(grade: Grade) -> Insight | None:
+    """Short positive reassurance for grade A when no other signal fired."""
+    if grade.letter != "A":
+        return None
+    return Insight(
+        level="ok",
+        finding="No actionable risks detected",
+        action="Re-run after adding skills to keep the grade honest",
+    )
+
+
 def _compute_insights(
     scan_result: ScanResult,
     dedup_result: DedupResult,
     exposure_result: ExposureReport,
     grade: Grade,
 ) -> list[Insight]:
-    """Derive 2-4 actionable observations for the right-column panel.
+    """Derive up to 4 actionable observations for the right-column panel.
+
+    Each builder returns an Insight or None depending on whether its
+    precondition fires. The clean-state insight is only added when no other
+    builder fired, so good news doesn't drown out neutral commentary.
 
     Empty list for Insufficient state (right panel will be hidden).
     """
@@ -367,75 +448,19 @@ def _compute_insights(
         return []
 
     out: list[Insight] = []
+    for insight in (
+        _insight_for_concentration(exposure_result),
+        _insight_for_sdk_variants(dedup_result),
+        _insight_for_missing_descriptions(exposure_result),
+        _insight_for_top_duplicate(dedup_result),
+    ):
+        if insight is not None:
+            out.append(insight)
 
-    # Concentration: top 3 skills' share of total worst-case body load.
-    files = exposure_result.files
-    worst_total = exposure_result.total_worst_case
-    if files and worst_total:
-        top3 = sum(f.worst_case_tokens for f in files[:3])
-        share = top3 / worst_total
-        if len(files) >= 4 and share >= 0.40:
-            out.append(
-                Insight(
-                    level="warn" if share >= 0.60 else "info",
-                    finding=f"Top 3 skills account for {share:.0%} of body size",
-                    action="Consider splitting them or trimming bodies",
-                )
-            )
-
-    # Cross-language SDK exclusion is a positive signal (detector working).
-    lv_count = len(dedup_result.language_variant_groups)
-    if lv_count and dedup_result.total_groups:
-        share = lv_count / dedup_result.total_groups
-        if share >= 0.20:
-            out.append(
-                Insight(
-                    level="ok",
-                    finding=(
-                        f"{lv_count} of {dedup_result.total_groups} duplicate "
-                        "groups are SDK variants"
-                    ),
-                    action="Already excluded from grade — no action needed",
-                )
-            )
-
-    # Skills without descriptions — these load full body regardless.
-    no_desc = exposure_result.skills_without_description
-    if no_desc:
-        out.append(
-            Insight(
-                level="critical",
-                finding=(
-                    f"{len(no_desc)} skill(s) missing description field"
-                ),
-                action="Add a description so Claude can defer the body load",
-            )
-        )
-
-    # Largest single duplicate group — savings opportunity.
-    if dedup_result.groups:
-        top_group = dedup_result.groups[0]
-        if not top_group.is_language_variant and top_group.wasted_tokens >= 200:
-            out.append(
-                Insight(
-                    level="warn",
-                    finding=(
-                        f"Top duplicate group: {top_group.wasted_tokens:,} "
-                        f"tokens repeated across {top_group.size} files"
-                    ),
-                    action="Extract to a shared reference and link from each",
-                )
-            )
-
-    # Clean state with no other signals — short positive reassurance.
-    if not out and grade.letter == "A":
-        out.append(
-            Insight(
-                level="ok",
-                finding="No actionable risks detected",
-                action="Re-run after adding skills to keep the grade honest",
-            )
-        )
+    if not out:
+        clean = _insight_for_clean_state(grade)
+        if clean is not None:
+            out.append(clean)
 
     return out[:4]
 

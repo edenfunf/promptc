@@ -70,10 +70,7 @@ def classify(relative_parts: tuple[str, ...]) -> FileRole:
 
     # Priority 3: path-based fallback for non-SKILL.md files.
     if "skills" in relative_parts:
-        try:
-            skills_idx = relative_parts.index("skills")
-        except ValueError:
-            skills_idx = 0
+        skills_idx = relative_parts.index("skills")
         # Flat layout: `skills/foo.md` (exactly one segment after `skills/`).
         if len(relative_parts) - skills_idx == 2:
             return FileRole.SKILL
@@ -170,10 +167,7 @@ def scan(path: Path, *, excludes: Iterable[str] = ()) -> ScanResult:
                 continue
 
             file_path = Path(dirpath) / filename
-            try:
-                relative = file_path.relative_to(root)
-            except ValueError:
-                continue
+            relative = file_path.relative_to(root)
 
             rel_parts = tuple(PurePosixPath(relative.as_posix()).parts)
             relative_display = relative.as_posix()
