@@ -136,6 +136,12 @@ formulae and threshold table.
 - **v0.3+** — semantic dedup (embedding-based, not just Jaccard);
   cross-binding language detector; `$` cost conversion.
 
+See [ROADMAP.md](ROADMAP.md) for per-feature scope and acceptance
+criteria. Bigger design conversations belong in
+[Discussions](https://github.com/edenfunf/promptc/discussions); concrete
+bugs and small improvements in
+[Issues](https://github.com/edenfunf/promptc/issues).
+
 ## Development
 
 ```bash

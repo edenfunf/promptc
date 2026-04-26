@@ -1,11 +1,21 @@
-# 15 good-first-issues for promptc
+# Roadmap
 
-Paste-ready issue text for the GitHub tracker. Each issue is scoped to
-a few hours' work for a contributor familiar with Python; each names
-the relevant files so a reader can find the seam without grepping.
+Planned features and contribution opportunities for promptc beyond
+v0.1.0. Each item below has scope, acceptance criteria, and the files
+a contributor would need to touch — so anyone can pick one up without
+grepping the codebase first.
 
-When opening these on GitHub, label them with `good-first-issue` plus
-the secondary tag in brackets after the title.
+The same items are also tracked as
+[issues](https://github.com/edenfunf/promptc/issues) on the repo;
+this file is the canonical narrative version. Discussions about the
+*direction* of any item (rather than the implementation) belong in
+[Discussions](https://github.com/edenfunf/promptc/discussions).
+
+**Where to start:**
+- New to the codebase? Look for items labelled `good first issue`
+  on the issues page (typically Sources #5, Docs #11–13, Tooling #15).
+- Want to influence v0.2 design? Open a Discussions thread.
+- Found an actual bug in v0.1? File an issue using the bug template.
 
 ---
 
@@ -296,16 +306,14 @@ small CLI helper if needed.
 
 ---
 
-## Suggested labelling and milestone
+## Labelling on GitHub Issues
 
-- All 15 → `good-first-issue`
-- Issues 1, 2, 3, 4, 5 → `area: sources` / `enhancement`
-- Issues 6, 7, 8, 9, 10 → `area: cli` / `enhancement`
-- Issues 11, 12, 13 → `area: docs`
-- Issues 14, 15 → `area: tooling`
-- All except 11 / 12 → `milestone: v0.2`
-- Issues 11 and 12 are evergreen — leave milestone empty.
+When the items above are mirrored as issues, they use these labels:
 
-When pasting into GitHub, lift just the section under each `###`
-heading; the title goes in the issue title field, everything from
-**Scope** onward goes in the issue body.
+- `enhancement` — all source/feature/tooling items (1–10, 14, 15)
+- `documentation` — docs items (11, 12, 13)
+- `good first issue` — items genuinely scoped for a first contribution:
+  #5 (Gemini, ~1-line addition), #11 (translate), #12 (case study),
+  #13 (document the variant detector), #15 (pre-commit hook).
+  The remaining items are larger and benefit from a Discussion
+  thread before someone picks them up.
