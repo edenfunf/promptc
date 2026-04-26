@@ -143,7 +143,7 @@ def test_multiplier_uses_symmetric_body_over_description(tmp_path: Path) -> None
     Before the fix, promised was (name + description tokens) and worst-case
     was total_tokens including frontmatter overhead. That inflated the
     multiplier because frontmatter weight was attributed to the numerator
-    only. Persona C flagged this as an HN-attack-grade bug.
+    only.
 
     New formula: body_tokens / description_tokens. Frontmatter is excluded
     from both sides.

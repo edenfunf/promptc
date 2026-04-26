@@ -48,9 +48,9 @@ def test_sufficient_when_both_conditions_pass(tmp_path: Path) -> None:
 def test_or_threshold_catches_placeholder_failure_mode(tmp_path: Path) -> None:
     """3 placeholder skills @ 50 tokens each — leaks through AND but trips OR.
 
-    This is the explicit failure mode Persona A retest #3 surfaced: under the
-    initially-proposed AND threshold, three near-empty SKILL.md files would
-    pass Insufficient and get a trivial A+. OR fixes it.
+    Pre-launch review surfaced this failure mode: under the initially-proposed
+    AND threshold, three near-empty SKILL.md files would pass Insufficient and
+    get a trivial A+. OR fixes it.
     """
     files = [_skill(f"skills/placeholder_{i}.md", 50) for i in range(INSUFFICIENT_MIN_SKILLS)]
     sr = ScanResult(root=tmp_path, files=files)

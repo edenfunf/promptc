@@ -31,7 +31,7 @@ from promptc.tokens import count_tokens
 # When a duplicate cluster's chunk paths differ ONLY in segments from
 # this set, the cluster is treated as legitimate cross-binding
 # documentation (e.g. an SDK README repeated per language) rather than
-# bloat — see Persona C beta point #4.
+# bloat.
 LANGUAGE_PATH_SEGMENTS: frozenset[str] = frozenset({
     "python", "py",
     "go", "golang",

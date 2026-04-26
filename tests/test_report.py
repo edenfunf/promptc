@@ -260,8 +260,8 @@ def test_render_html_renders_duplicates_section(tmp_path: Path) -> None:
     _seed_with_duplicates(tmp_path)
     html = render_html(*_analyze(tmp_path))
     assert "Duplicate rules" in html
-    # New (Day 13): non-variant clusters say "duplicate tokens" rather than
-    # the editorial "tokens wasted".
+    # Non-variant clusters say "duplicate tokens" rather than the editorial
+    # "tokens wasted".
     assert "duplicate tokens" in html
     # At least one chunk is tagged canonical
     assert "canonical" in html
@@ -335,13 +335,14 @@ def test_render_html_insufficient_state_renders_distinct_hero(tmp_path: Path) ->
         encoding="utf-8",
     )
     html = render_html(*_analyze(tmp_path))
-    # Per the IA rebuild: the Insufficient state surfaces "Not enough to grade"
-    # in the hero headline + an "Insufficient data" status pill, framed as a
-    # tool limitation (Persona D-Δ1 mitigation).
+    # The Insufficient state surfaces "Not enough to grade" in the hero
+    # headline + an "Insufficient data" status pill, framed as a tool
+    # limitation rather than a verdict on the user's setup.
     assert "Not enough to grade" in html
     assert "Insufficient data" in html
     assert "hero--insufficient" in html
-    # Per D-Δ1: insufficient copy must surface the Cursor v0.2 note.
+    # Insufficient copy must surface the Cursor v0.2 note so users know
+    # why a Cursor-only setup is not graded.
     assert ".cursor/rules/" in html
     assert "v0.2" in html
     # Exposure CARD must not render in insufficient state (methodology section
@@ -403,11 +404,11 @@ def test_render_html_surfaces_cursor_sibling_warning(tmp_path: Path) -> None:
 
 
 def test_methodology_section_present_with_thresholds_and_caveats(tmp_path: Path) -> None:
-    """Per Persona C re-test: methodology must ship at launch, not Day 12 deferred.
+    """Methodology section must ship at launch, not deferred to a later release.
 
     Asserts that the report exposes the formulae, the threshold table, and
-    honest 'heuristic' caveats — these together neutralise the rewritten
-    HN comment about an undefended grade being elevated to entire product.
+    honest 'heuristic' caveats — these together pre-empt the typical critique
+    that an undefended grade gets elevated to a product-level verdict.
     """
     _seed(tmp_path)
     html = render_html(*_analyze(tmp_path))
@@ -426,7 +427,7 @@ def test_methodology_section_present_with_thresholds_and_caveats(tmp_path: Path)
     for pct in ("5%", "15%", "25%", "40%"):
         assert pct in html
 
-    # Honest caveats — the language Persona C said was missing
+    # Honest caveats that beta feedback flagged as missing
     flat = " ".join(html.split()).lower()
     assert "thresholds are heuristic" in flat
     assert "v0.2 will replace them" in flat
@@ -446,9 +447,9 @@ def test_methodology_section_includes_tokenizer_disclaimer_and_cjk_caveat(tmp_pa
 
 
 def test_hero_disclaimer_links_to_methodology(tmp_path: Path) -> None:
-    """Per Persona C re-test: short disclaimer must stay adjacent to the hero
-    so the caveat travels with the headline number; full caveats live in
-    methodology and the hero links to it.
+    """Short disclaimer must stay adjacent to the hero so the caveat travels
+    with the headline number; full caveats live in methodology and the hero
+    links to it.
     """
     _seed(tmp_path)
     html = render_html(*_analyze(tmp_path))

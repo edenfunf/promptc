@@ -6,9 +6,6 @@ Design constraints:
       must render correctly.
     - Screenshot-friendly: the hero section is the first thing a reader
       sees and should be legible as a standalone image.
-
-Day 8 scope: Hero section + Top 10 largest files. Day 9 extends with
-duplicates detail and the skill context exposure block.
 """
 
 from __future__ import annotations

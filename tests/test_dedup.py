@@ -142,8 +142,8 @@ def test_find_duplicates_wasted_tokens_attribution(tmp_path: Path) -> None:
 
 
 def test_language_variant_cluster_excluded_from_bloat(tmp_path: Path) -> None:
-    """Persona C HN attack #4 fix: SDK READMEs duplicated per language binding
-    should NOT count as bloat — they're legitimate per-binding docs.
+    """SDK READMEs duplicated per language binding should NOT count as bloat —
+    they're legitimate per-binding docs.
     """
     rule = (
         "To create a managed agent, instantiate the client and call "
